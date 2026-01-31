@@ -39,14 +39,14 @@ A Stremio addon that lets you add your favorite TV shows and automatically play 
 5. In Stremio:
    - Go to **Addons**
    - Click **"Install from URL"**
-- Enter: `http://localhost:7001/manifest.json?user=YOUR_KEY`
+   - Open `http://localhost:7001/install` and copy the generated install URL
    - Click **Install**
 
 ### Accessing the Settings Page
 
 Open your browser and navigate to:
 ```
-http://localhost:7001/settings
+http://localhost:7001/myshows
 ```
 
 Here you can:
@@ -58,7 +58,7 @@ Here you can:
 
 ## Usage
 
-1. **Set User Key**: Open the settings page (`http://localhost:7001/settings`) and set your **User Key**. Use the same key on every device.
+1. **Install**: Open `http://localhost:7001/install` and install the addon using the generated URL.
 
 2. **Find Random Episode**: In Stremio's **Discover** section, find the "Find Random Episode" catalog
 
@@ -104,9 +104,9 @@ const MAX_SHOWS = 150;
 1. Create a MongoDB database (MongoDB Atlas recommended).
 2. In Vercel, set the `MONGODB_URI` environment variable.
 3. Deploy the repo to Vercel.
-4. Open the settings page on your Vercel URL to generate a **User Key** and copy the install URL.
+4. Open `/install` on your Vercel URL to generate the install URL.
 
-The addon uses the `user` query param (e.g. `https://your-app.vercel.app/manifest.json?user=YOUR_KEY`) so the same key shares the same show list across devices.
+The install page generates a key and builds the `manifest.json?user=KEY` URL so the same key shares the same show list across devices.
 
 ## Technologies Used
 
@@ -126,7 +126,8 @@ The addon uses the `user` query param (e.g. `https://your-app.vercel.app/manifes
 | `/stream/:type/:id.json` | GET | Stream URLs |
 | `/api/shows` | GET/POST | Manage show list |
 | `/api/search` | GET | Search TV shows |
-| `/settings` | GET | Settings web interface |
+| `/myshows` | GET | Settings web interface |
+| `/install` | GET | Install page |
 
 ## Troubleshooting
 
