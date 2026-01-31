@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -11,6 +12,7 @@ app.use(express.json());
 
 const CINEMETA_URL = 'https://v3-cinemeta.strem.io';
 const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_DB = process.env.MONGODB_DB;
 let mongoClient;
 let mongoDb;
 let mongoClientPromise;
@@ -27,19 +29,36 @@ async function fetchMeta(type, id) {
   return null;
 }
 
+function getDbNameFromUri(uri) {
+  try {
+    const parsed = new URL(uri);
+    if (!parsed.pathname || parsed.pathname === '/') return null;
+    return parsed.pathname.replace('/', '') || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function getDb() {
   if (!MONGODB_URI) {
     throw new Error('Missing MONGODB_URI');
   }
   if (mongoDb) return mongoDb;
   if (!mongoClient) {
-    mongoClient = new MongoClient(MONGODB_URI);
+    mongoClient = new MongoClient(MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      tls: true,
+    });
   }
   if (!mongoClientPromise) {
     mongoClientPromise = mongoClient.connect();
   }
   await mongoClientPromise;
-  mongoDb = mongoClient.db();
+  const dbName = MONGODB_DB || getDbNameFromUri(MONGODB_URI);
+  if (!dbName) {
+    console.warn('No database name set in MONGODB_URI or MONGODB_DB');
+  }
+  mongoDb = mongoClient.db(dbName || undefined);
   return mongoDb;
 }
 
@@ -213,6 +232,9 @@ const manifest = {
   description: 'Randomly play episodes from your favorite TV shows',
   logo: 'https://via.placeholder.com/256x256.png?text=Random+TV',
   configurable: true,
+  behaviorHints: {
+    configurable: true,
+  },
   config: [
     {
       key: 'user',
@@ -386,11 +408,24 @@ app.get('/manifest.json', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.redirect('/manifest.json');
+  res.redirect('/install');
+});
+
+app.get('/install', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'install.html'));
+});
+
+app.get('/myshows', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/configure', (req, res) => {
+  const params = new URLSearchParams(req.query).toString();
+  res.redirect(params ? `/myshows?${params}` : '/myshows');
 });
 
 app.get('/settings', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.redirect('/myshows');
 });
 
 app.get('/api/search', async (req, res) => {
@@ -421,6 +456,16 @@ app.get('/api/search', async (req, res) => {
   } catch (e) {
     console.error('Search error:', e);
     res.status(500).json({ metas: [] });
+  }
+});
+
+app.get('/api/health', async (req, res) => {
+  try {
+    await getDb();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Health check error:', e);
+    res.status(500).json({ ok: false, error: e.message || 'DB error' });
   }
 });
 

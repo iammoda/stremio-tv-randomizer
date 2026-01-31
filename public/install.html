@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TV Show Randomizer - Install</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <h1 class="title">🎲 TV Show Randomizer</h1>
+      </header>
+
+      <section>
+        <h2 class="section-title">Install in Stremio</h2>
+        <div class="install-content">
+          <div class="install-step">
+            <span class="install-number">1</span>
+            <p>Open Stremio and go to <strong>Addons</strong></p>
+          </div>
+          <div class="install-step">
+            <span class="install-number">2</span>
+            <p>Click <strong>"Install from URL"</strong></p>
+          </div>
+          <div class="install-step">
+            <span class="install-number">3</span>
+            <p>
+              Enter this URL:<br />
+              <code id="installUrl">Generating...</code>
+            </p>
+          </div>
+          <div class="install-step">
+            <span class="install-number">4</span>
+            <p>Click <strong>"Install"</strong> to enable the addon</p>
+          </div>
+        </div>
+        <div class="install-actions">
+          <button class="btn" id="copyInstall">Copy Install URL</button>
+          <span id="copyStatus" class="copy-status"></span>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Add Your Shows</h2>
+        <div class="help-content">
+          <div class="help-item">
+            <span class="help-number">1</span>
+            <p>Install the addon using the URL above</p>
+          </div>
+          <div class="help-item">
+            <span class="help-number">2</span>
+            <p>In Stremio, click <strong>Configure</strong> for the addon</p>
+          </div>
+          <div class="help-item">
+            <span class="help-number">3</span>
+            <p>That opens <strong>/myshows</strong> with your key</p>
+          </div>
+          <div class="help-item">
+            <span class="help-number">4</span>
+            <p>Search and add shows from the configuration page</p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p>TV Show Randomizer for Stremio</p>
+      </footer>
+    </div>
+
+    <script>
+      const STORAGE_KEY = 'tvRandomizerInstallKey';
+
+      function generateKey() {
+        if (crypto.randomUUID) return crypto.randomUUID();
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+      }
+
+      function getKey() {
+        const existing = localStorage.getItem(STORAGE_KEY);
+        if (existing) return existing;
+        const nextKey = generateKey();
+        localStorage.setItem(STORAGE_KEY, nextKey);
+        return nextKey;
+      }
+
+      function setInstallUrl() {
+        const key = getKey();
+        const url = `${window.location.origin}/manifest.json?user=${encodeURIComponent(key)}`;
+        document.getElementById('installUrl').textContent = url;
+        return url;
+      }
+
+      async function copyInstallUrl() {
+        const url = setInstallUrl();
+        try {
+          await navigator.clipboard.writeText(url);
+          setCopyStatus('Copied');
+        } catch (e) {
+          setCopyStatus('Copy failed');
+        }
+      }
+
+      function setCopyStatus(text) {
+        const status = document.getElementById('copyStatus');
+        status.textContent = text;
+        setTimeout(() => {
+          status.textContent = '';
+        }, 2000);
+      }
+
+      document.getElementById('copyInstall').addEventListener('click', () => {
+        copyInstallUrl();
+      });
+
+      setInstallUrl();
+    </script>
+  </body>
+</html>

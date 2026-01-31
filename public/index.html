@@ -19,25 +19,35 @@
         </button>
       </header>
 
-      <section class="user-section">
-        <h2 class="section-title">User Key</h2>
-        <div class="user-key-row">
-          <input
-            type="text"
-            id="userKeyInput"
-            placeholder="Enter your user key"
-          />
-          <button class="btn" onclick="saveUserKey()">Save</button>
-          <button class="btn btn-secondary" onclick="generateUserKey()">
-            New Key
-          </button>
+      <section id="installOnly" class="install-only" style="display: none">
+        <h2 class="section-title">Install & Configure</h2>
+        <div class="install-content">
+          <div class="install-step">
+            <span class="install-number">1</span>
+            <p>
+              Open the install page:<br />
+              <code id="installPageUrl">https://YOUR-VERCEL-URL/install</code>
+            </p>
+          </div>
+          <div class="install-step">
+            <span class="install-number">2</span>
+            <p>Copy the generated install URL and add it in Stremio</p>
+          </div>
+          <div class="install-step">
+            <span class="install-number">3</span>
+            <p>
+              Click <strong>Configure</strong> in Stremio to open this page with
+              your key
+            </p>
+          </div>
+          <div class="install-step">
+            <span class="install-number">4</span>
+            <p>Search and add shows once your key is present</p>
+          </div>
         </div>
-        <p class="hint">
-          Use the same key on all devices to share your show list.
-        </p>
       </section>
 
-      <section class="add-section">
+      <section class="add-section requires-key">
         <h2 class="section-title">Add Show</h2>
         <div class="search-container">
           <div class="search-box">
@@ -55,7 +65,7 @@
         <p class="hint">Search for TV shows and click + to add</p>
       </section>
 
-      <section class="shows-section">
+      <section class="shows-section requires-key">
         <div class="section-header">
           <h2 class="section-title">My Shows</h2>
           <span class="show-count" id="showCount"
@@ -101,14 +111,14 @@
         </div>
       </section>
 
-      <section class="actions-section">
+      <section class="actions-section requires-key">
         <button class="btn btn-danger" onclick="clearAll()">
           <span class="btn-icon">🗑️</span>
           Clear All Shows
         </button>
       </section>
 
-      <section class="help-section">
+      <section class="help-section requires-key">
         <h2 class="section-title">How to Use</h2>
         <div class="help-content">
           <div class="help-item">
@@ -132,33 +142,6 @@
         </div>
       </section>
 
-      <section class="install-section">
-        <h2 class="section-title">Install in Stremio</h2>
-        <div class="install-content">
-          <div class="install-step">
-            <span class="install-number">1</span>
-            <p>Open Stremio and go to <strong>Addons</strong></p>
-          </div>
-          <div class="install-step">
-            <span class="install-number">2</span>
-            <p>Click <strong>"Install from URL"</strong></p>
-          </div>
-          <div class="install-step">
-            <span class="install-number">3</span>
-            <p>
-              Enter this URL:<br />
-              <code id="installUrl">http://localhost:7001/manifest.json</code>
-            </p>
-          </div>
-          <div class="install-step">
-            <span class="install-number">4</span>
-            <p>Click <strong>"Install"</strong> to enable the addon</p>
-          </div>
-          <p class="install-note">
-            Note: The install URL includes your User Key.
-          </p>
-        </div>
-      </section>
 
       <footer class="footer">
         <p>TV Show Randomizer for Stremio</p>
@@ -167,14 +150,13 @@
 
     <script>
        const API_BASE = '/api';
-       const USER_KEY_STORAGE = 'tvRandomizerUserKey';
-       let searchTimeout = null;
-       let isDarkMode = true;
-       let allShows = [];
-       let displayedShows = [];
-       let currentLimit = 4;
-       const SHOWS_PER_PAGE = 4;
-       let userKey = '';
+      let searchTimeout = null;
+      let isDarkMode = true;
+      let allShows = [];
+      let displayedShows = [];
+      let currentLimit = 4;
+      const SHOWS_PER_PAGE = 4;
+      let userKey = '';
 
       function initTheme() {
         const savedTheme = localStorage.getItem('tvRandomizerTheme');
@@ -217,9 +199,9 @@
         }
       }
 
-       async function searchShows() {
-         const query = document.getElementById('searchInput').value.trim();
-         if (!query) return;
+      async function searchShows() {
+        const query = document.getElementById('searchInput').value.trim();
+        if (!query) return;
 
         const resultsContainer = document.getElementById('searchResults');
         resultsContainer.innerHTML =
@@ -285,12 +267,8 @@
           .replace(/\t/g, '\\t');
       }
 
-       async function selectShow(id, name, poster) {
-         if (!userKey) {
-           showToast('Set your user key first');
-           return;
-         }
-         try {
+      async function selectShow(id, name, poster) {
+        try {
            const response = await fetch(apiUrl('/shows'), {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
@@ -458,57 +436,29 @@
          }
        });
 
-       function apiUrl(path) {
-         const separator = path.includes('?') ? '&' : '?';
-         return `${API_BASE}${path}${separator}user=${encodeURIComponent(userKey)}`;
-       }
+      function initUserKey() {
+        const urlKey = new URLSearchParams(window.location.search).get('user');
+        userKey = urlKey ? urlKey.trim() : '';
+        setKeyMode(Boolean(userKey));
+        const installPage = document.getElementById('installPageUrl');
+        if (installPage) {
+          installPage.textContent = `${window.location.origin}/install`;
+        }
+      }
 
-       function generateKey() {
-         if (crypto.randomUUID) return crypto.randomUUID();
-         const bytes = new Uint8Array(16);
-         crypto.getRandomValues(bytes);
-         return Array.from(bytes)
-           .map((b) => b.toString(16).padStart(2, '0'))
-           .join('');
-       }
+      function setKeyMode(enabled) {
+        const installOnly = document.getElementById('installOnly');
+        const keySections = document.querySelectorAll('.requires-key');
+        installOnly.style.display = enabled ? 'none' : 'block';
+        keySections.forEach((section) => {
+          section.style.display = enabled ? 'block' : 'none';
+        });
+      }
 
-       function setUserKey(value) {
-         const nextKey = value.trim();
-         if (!nextKey) {
-           showToast('User key cannot be empty');
-           return;
-         }
-         userKey = nextKey;
-         localStorage.setItem(USER_KEY_STORAGE, userKey);
-         document.getElementById('userKeyInput').value = userKey;
-         updateInstallUrl();
-         loadShows();
-       }
-
-       function initUserKey() {
-         const urlKey = new URLSearchParams(window.location.search).get('user');
-         const savedKey = localStorage.getItem(USER_KEY_STORAGE);
-         const initialKey = urlKey || savedKey || generateKey();
-         setUserKey(initialKey);
-       }
-
-       function saveUserKey() {
-         const input = document.getElementById('userKeyInput').value;
-         setUserKey(input);
-       }
-
-       function generateUserKey() {
-         const nextKey = generateKey();
-         setUserKey(nextKey);
-         showToast('New key generated');
-       }
-
-       function updateInstallUrl() {
-         const base = window.location.origin;
-         const url = `${base}/manifest.json?user=${encodeURIComponent(userKey)}`;
-         const installEl = document.getElementById('installUrl');
-         installEl.textContent = url;
-       }
+      function apiUrl(path) {
+        const separator = path.includes('?') ? '&' : '?';
+        return `${API_BASE}${path}${separator}user=${encodeURIComponent(userKey)}`;
+      }
 
        initTheme();
        initUserKey();
