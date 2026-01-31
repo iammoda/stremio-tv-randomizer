@@ -146,26 +146,21 @@ function buildEpisodeMeta(meta, episodeId, season, episode, video) {
   return {
     meta: {
       id: episodeId,
-      type: 'series',
-      name: `${meta.meta.name} - ${videoTitle}`,
+      type: 'episode',
+      name: videoTitle,
+      series: meta.meta.name,
+      seriesId: meta.meta.id,
+      season,
+      episode: video ? video.episode || video.number || episode : episode,
       poster: meta.meta.poster,
       background: meta.meta.background,
       description: video ? video.description || video.overview || '' : '',
       releaseInfo: video && video.released ? video.released.substring(0, 4) : '',
-      videos: [
-        {
-          id: episodeId,
-          title: videoTitle,
-          season,
-          episode: video ? video.episode || video.number || episode : episode,
-          released: video ? video.released || video.firstAired || '' : '',
-        },
-      ],
+      released: video ? video.released || video.firstAired || '' : '',
       behaviorHints: {
         bingeGroup: meta.meta.id,
         featured: true,
         videoSize: 1080,
-        defaultVideoId: episodeId,
       },
     },
   };
@@ -346,36 +341,13 @@ async function handleMeta(type, id, userId) {
     if (meta && meta.meta && meta.meta.videos && meta.meta.videos.length > 0) {
       const randomEpisode =
         meta.meta.videos[Math.floor(Math.random() * meta.meta.videos.length)];
-      return {
-        meta: {
-          id: randomShow.id,
-          type: 'series',
-          name: randomShow.name,
-          poster: randomShow.poster,
-          background: randomShow.background,
-          description:
-            randomEpisode.description || randomEpisode.overview || '',
-          releaseInfo: randomEpisode.released
-            ? randomEpisode.released.substring(0, 4)
-            : '',
-          videos: [
-            {
-              id: randomEpisode.id,
-              title: randomEpisode.name || randomEpisode.title,
-              season: randomEpisode.season || 0,
-              episode: randomEpisode.episode || randomEpisode.number || 1,
-              released:
-                randomEpisode.released || randomEpisode.firstAired || '',
-            },
-          ],
-          behaviorHints: {
-            bingeGroup: randomShow.id,
-            featured: true,
-            videoSize: 1080,
-            defaultVideoId: randomEpisode.id,
-          },
-        },
-      };
+      return buildEpisodeMeta(
+        meta,
+        randomEpisode.id,
+        randomEpisode.season || 0,
+        randomEpisode.episode || randomEpisode.number || 1,
+        randomEpisode,
+      );
     }
 
     return { meta: null };
