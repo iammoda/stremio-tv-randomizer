@@ -138,7 +138,7 @@ function findEpisodeVideo(meta, season, episode) {
   );
 }
 
-function buildSeriesMetaForEpisode(seriesMeta, episodeId, season, episode, video) {
+function buildEpisodeMeta(seriesMeta, episodeId, season, episode, video) {
   const videoTitle =
     video && (video.name || video.title)
       ? video.name || video.title
@@ -149,37 +149,31 @@ function buildSeriesMetaForEpisode(seriesMeta, episodeId, season, episode, video
     '';
   return {
     meta: {
-      id: seriesMeta.meta.id,
-      type: 'series',
+      id: episodeId,
+      type: 'episode',
       name: seriesMeta.meta.name,
+      series: seriesMeta.meta.name,
+      seriesId: seriesMeta.meta.id,
+      season,
+      episode: video ? video.episode || video.number || episode : episode,
       logo: seriesMeta.meta.logo,
       poster: seriesMeta.meta.poster,
       background: seriesMeta.meta.background,
-      description:
-        video ? video.description || video.overview || '' : seriesMeta.meta.description || '',
+      description: video ? video.description || video.overview || '' : '',
       releaseInfo,
+      released: video ? video.released || video.firstAired || '' : '',
       imdbRating: seriesMeta.meta.imdbRating,
       runtime: seriesMeta.meta.runtime,
       genres: seriesMeta.meta.genres,
       cast: seriesMeta.meta.cast,
       director: seriesMeta.meta.director,
       writer: seriesMeta.meta.writer,
-      videos: [
-        {
-          id: episodeId,
-          title: videoTitle,
-          season,
-          episode: video ? video.episode || video.number || episode : episode,
-          released: video ? video.released || video.firstAired || '' : '',
-        },
-      ],
       behaviorHints: {
-        ...(seriesMeta.meta.behaviorHints || {}),
         bingeGroup: seriesMeta.meta.id,
         featured: true,
         videoSize: 1080,
-        defaultVideoId: episodeId,
       },
+      title: videoTitle,
     },
   };
 }
@@ -337,7 +331,7 @@ async function handleMeta(type, id, userId) {
         episodeInfo.season,
         episodeInfo.episode,
       );
-      return buildSeriesMetaForEpisode(
+      return buildEpisodeMeta(
         meta,
         id,
         episodeInfo.season,
@@ -359,7 +353,7 @@ async function handleMeta(type, id, userId) {
     if (meta && meta.meta && meta.meta.videos && meta.meta.videos.length > 0) {
       const randomEpisode =
         meta.meta.videos[Math.floor(Math.random() * meta.meta.videos.length)];
-      return buildSeriesMetaForEpisode(
+      return buildEpisodeMeta(
         meta,
         randomEpisode.id,
         randomEpisode.season || 0,
