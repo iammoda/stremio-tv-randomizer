@@ -276,7 +276,7 @@ async function handleCatalog(type, id, extra, userId) {
         id: 'random-episode-action',
         type: 'series',
         name: '🎲 Random Episode',
-        poster: 'https://i.imgflip.com/1ur9b0.jpg',
+        poster: 'https://i.redd.it/e2wriei591m51.jpg',
         description:
           'Click to play a random episode from any show in your list',
         behaviorHints: {
