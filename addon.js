@@ -138,29 +138,47 @@ function findEpisodeVideo(meta, season, episode) {
   );
 }
 
-function buildEpisodeMeta(meta, episodeId, season, episode, video) {
+function buildSeriesMetaForEpisode(seriesMeta, episodeId, season, episode, video) {
   const videoTitle =
     video && (video.name || video.title)
       ? video.name || video.title
       : `S${season}E${episode}`;
+  const releaseInfo =
+    (video && video.released ? video.released.substring(0, 4) : '') ||
+    seriesMeta.meta.releaseInfo ||
+    '';
   return {
     meta: {
-      id: episodeId,
-      type: 'episode',
-      name: videoTitle,
-      series: meta.meta.name,
-      seriesId: meta.meta.id,
-      season,
-      episode: video ? video.episode || video.number || episode : episode,
-      poster: meta.meta.poster,
-      background: meta.meta.background,
-      description: video ? video.description || video.overview || '' : '',
-      releaseInfo: video && video.released ? video.released.substring(0, 4) : '',
-      released: video ? video.released || video.firstAired || '' : '',
+      id: seriesMeta.meta.id,
+      type: 'series',
+      name: seriesMeta.meta.name,
+      logo: seriesMeta.meta.logo,
+      poster: seriesMeta.meta.poster,
+      background: seriesMeta.meta.background,
+      description:
+        video ? video.description || video.overview || '' : seriesMeta.meta.description || '',
+      releaseInfo,
+      imdbRating: seriesMeta.meta.imdbRating,
+      runtime: seriesMeta.meta.runtime,
+      genres: seriesMeta.meta.genres,
+      cast: seriesMeta.meta.cast,
+      director: seriesMeta.meta.director,
+      writer: seriesMeta.meta.writer,
+      videos: [
+        {
+          id: episodeId,
+          title: videoTitle,
+          season,
+          episode: video ? video.episode || video.number || episode : episode,
+          released: video ? video.released || video.firstAired || '' : '',
+        },
+      ],
       behaviorHints: {
-        bingeGroup: meta.meta.id,
+        ...(seriesMeta.meta.behaviorHints || {}),
+        bingeGroup: seriesMeta.meta.id,
         featured: true,
         videoSize: 1080,
+        defaultVideoId: episodeId,
       },
     },
   };
@@ -319,7 +337,7 @@ async function handleMeta(type, id, userId) {
         episodeInfo.season,
         episodeInfo.episode,
       );
-      return buildEpisodeMeta(
+      return buildSeriesMetaForEpisode(
         meta,
         id,
         episodeInfo.season,
@@ -341,7 +359,7 @@ async function handleMeta(type, id, userId) {
     if (meta && meta.meta && meta.meta.videos && meta.meta.videos.length > 0) {
       const randomEpisode =
         meta.meta.videos[Math.floor(Math.random() * meta.meta.videos.length)];
-      return buildEpisodeMeta(
+      return buildSeriesMetaForEpisode(
         meta,
         randomEpisode.id,
         randomEpisode.season || 0,
