@@ -3,145 +3,65 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TV Show Randomizer - Settings</title>
+    <title>TV Show Randomizer - Install</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="container">
       <header class="header">
         <h1 class="title">🎲 TV Show Randomizer</h1>
-        <button
-          class="theme-toggle"
-          onclick="toggleTheme()"
-          title="Toggle dark/light mode"
-        >
-          <span class="theme-icon">🌙</span>
-        </button>
       </header>
 
-      <section id="installOnly" class="install-only" style="display: none">
-        <h2 class="section-title">Install & Configure</h2>
+      <section>
+        <h2 class="section-title">Install in Stremio</h2>
         <div class="install-content">
           <div class="install-step">
             <span class="install-number">1</span>
-            <p>
-              Open the install page:<br />
-              <code id="installPageUrl">https://YOUR-VERCEL-URL</code>
-            </p>
+            <p>Open Stremio and go to <strong>Addons</strong></p>
           </div>
           <div class="install-step">
             <span class="install-number">2</span>
-            <p>Copy the generated install URL and add it in Stremio</p>
+            <p>Click <strong>"Install from URL"</strong></p>
           </div>
           <div class="install-step">
             <span class="install-number">3</span>
             <p>
-              Click <strong>Configure</strong> in Stremio to open this page with
-              your key
+              Enter this URL:<br />
+              <code id="installUrl">Generating...</code>
             </p>
           </div>
           <div class="install-step">
             <span class="install-number">4</span>
-            <p>Search and add shows once your key is present</p>
+            <p>Click <strong>"Install"</strong> to enable the addon</p>
           </div>
         </div>
-      </section>
-
-      <section class="add-section requires-key">
-        <h2 class="section-title">Add Show</h2>
-        <div class="search-container">
-          <div class="search-box">
-            <input
-              type="text"
-              id="searchInput"
-              placeholder="Search for a TV show..."
-              oninput="handleSearch(this.value)"
-              onfocus="showSearchResults()"
-            />
-            <button class="search-btn" onclick="searchShows()">Search</button>
-          </div>
-          <div id="searchResults" class="search-results"></div>
-        </div>
-        <p class="hint">Search for TV shows and click + to add</p>
-      </section>
-
-      <section class="shows-section requires-key">
-        <div class="section-header">
-          <h2 class="section-title">My Shows</h2>
-          <span class="show-count" id="showCount"
-            >0 / <span id="showLimit">150</span></span
-          >
-        </div>
-
-        <div class="my-shows-search">
-          <input
-            type="text"
-            id="myShowsSearch"
-            placeholder="Search in my shows..."
-            oninput="filterMyShows(this.value)"
-          />
-        </div>
-
-        <div id="showsList" class="shows-grid"></div>
-
-        <div id="paginationControls" class="pagination-controls">
-          <button
-            id="showMoreBtn"
-            class="btn btn-pagination"
-            onclick="showMore()"
-          >
-            <span class="btn-arrow">↓</span> Show More
-          </button>
-          <button
-            id="showAllBtn"
-            class="btn btn-pagination"
-            onclick="showAll()"
-          >
-            Show All <span class="btn-arrow">↘</span>
-          </button>
-        </div>
-
-        <div id="emptyState" class="empty-state">
-          <p>No shows added yet</p>
-          <p class="empty-hint">Search above to add your favorite TV shows</p>
-        </div>
-
-        <div id="noSearchResults" class="empty-state" style="display: none">
-          <p>No matching shows</p>
+        <div class="install-actions">
+          <button class="btn" id="copyInstall">Copy Install URL</button>
+          <span id="copyStatus" class="copy-status"></span>
         </div>
       </section>
 
-      <section class="actions-section requires-key">
-        <button class="btn btn-danger" onclick="clearAll()">
-          <span class="btn-icon">🗑️</span>
-          Clear All Shows
-        </button>
-      </section>
-
-      <section class="help-section requires-key">
-        <h2 class="section-title">How to Use</h2>
+      <section>
+        <h2 class="section-title">Add Your Shows</h2>
         <div class="help-content">
           <div class="help-item">
             <span class="help-number">1</span>
-            <p>Search for TV shows and select from results</p>
+            <p>Install the addon using the URL above</p>
           </div>
           <div class="help-item">
             <span class="help-number">2</span>
-            <p>
-              Find <strong>"Find Random Episode"</strong> in Stremio Discover
-            </p>
+            <p>In Stremio, click <strong>Configure</strong> for the addon</p>
           </div>
           <div class="help-item">
             <span class="help-number">3</span>
-            <p>Click to play a random episode from your list</p>
+            <p>That opens <strong>/myshows</strong> with your key</p>
           </div>
           <div class="help-item">
             <span class="help-number">4</span>
-            <p>Episodes auto-continue when finished</p>
+            <p>Search and add shows from the configuration page</p>
           </div>
         </div>
       </section>
-
 
       <footer class="footer">
         <p>TV Show Randomizer for Stremio</p>
@@ -149,320 +69,55 @@
     </div>
 
     <script>
-       const API_BASE = '/api';
-      let searchTimeout = null;
-      let isDarkMode = true;
-      let allShows = [];
-      let displayedShows = [];
-      let currentLimit = 4;
-      const SHOWS_PER_PAGE = 4;
-      let userKey = '';
+      const STORAGE_KEY = 'tvRandomizerInstallKey';
 
-      function initTheme() {
-        const savedTheme = localStorage.getItem('tvRandomizerTheme');
-        if (savedTheme !== null) {
-          isDarkMode = savedTheme === 'dark';
-        }
-        applyTheme();
-      }
-
-      function toggleTheme() {
-        isDarkMode = !isDarkMode;
-        localStorage.setItem(
-          'tvRandomizerTheme',
-          isDarkMode ? 'dark' : 'light',
-        );
-        applyTheme();
-      }
-
-      function applyTheme() {
-        document.body.classList.toggle('light-mode', !isDarkMode);
-        const icon = document.querySelector('.theme-icon');
-        icon.textContent = isDarkMode ? '🌙' : '☀️';
-      }
-
-       async function loadShows() {
-         if (!userKey) {
-           allShows = [];
-           updatePagination();
-           return;
-         }
-         try {
-           const response = await fetch(apiUrl('/shows'));
-           const data = await response.json();
-           allShows = data.shows || [];
-           document.getElementById('showLimit').textContent = data.limit || 150;
-          currentLimit = 4;
-          filterMyShows(document.getElementById('myShowsSearch').value);
-        } catch (e) {
-          console.error('Failed to load shows:', e);
-        }
-      }
-
-      async function searchShows() {
-        const query = document.getElementById('searchInput').value.trim();
-        if (!query) return;
-
-        const resultsContainer = document.getElementById('searchResults');
-        resultsContainer.innerHTML =
-          '<div class="search-loading">Searching...</div>';
-        resultsContainer.style.display = 'block';
-
-         try {
-           const response = await fetch(
-             apiUrl(`/search?q=${encodeURIComponent(query)}`),
-           );
-           const data = await response.json();
-
-          if (data.metas && data.metas.length > 0) {
-            renderSearchResults(data.metas);
-          } else {
-            resultsContainer.innerHTML =
-              '<div class="search-no-results">No shows found</div>';
-          }
-        } catch (e) {
-          console.error('Search error:', e);
-          resultsContainer.innerHTML =
-            '<div class="search-no-results">Search failed. Try again.</div>';
-        }
-      }
-
-      function handleSearch(value) {
-        clearTimeout(searchTimeout);
-        if (value.length < 2) {
-          document.getElementById('searchResults').style.display = 'none';
-          return;
-        }
-        searchTimeout = setTimeout(() => {
-          searchShows();
-        }, 300);
-      }
-
-      function renderSearchResults(metas) {
-        const container = document.getElementById('searchResults');
-        container.innerHTML = metas
-          .map(
-            (show) => `
-                <div class="search-result" onclick="selectShow('${show.id}', &quot;${escapeJs(show.name)}&quot;, '${show.poster || ''}')">
-                    <img src="${show.poster}" alt="${show.name}" class="result-poster" onerror="this.style.display='none'">
-                    <div class="result-info">
-                        <span class="result-name">${show.name}</span>
-                        ${show.year ? `<span class="result-year">${show.year}</span>` : ''}
-                    </div>
-                    <span class="result-add">+</span>
-                </div>
-            `,
-          )
+      function generateKey() {
+        if (crypto.randomUUID) return crypto.randomUUID();
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes)
+          .map((b) => b.toString(16).padStart(2, '0'))
           .join('');
       }
 
-      function escapeJs(text) {
-        if (!text) return '';
-        return text
-          .replace(/\\/g, '\\\\')
-          .replace(/'/g, "\\'")
-          .replace(/"/g, '\\"')
-          .replace(/\n/g, '\\n')
-          .replace(/\r/g, '\\r')
-          .replace(/\t/g, '\\t');
+      function getKey() {
+        const existing = localStorage.getItem(STORAGE_KEY);
+        if (existing) return existing;
+        const nextKey = generateKey();
+        localStorage.setItem(STORAGE_KEY, nextKey);
+        return nextKey;
       }
 
-      async function selectShow(id, name, poster) {
+      function setInstallUrl() {
+        const key = getKey();
+        const url = `${window.location.origin}/manifest.json?user=${encodeURIComponent(key)}`;
+        document.getElementById('installUrl').textContent = url;
+        return url;
+      }
+
+      async function copyInstallUrl() {
+        const url = setInstallUrl();
         try {
-           const response = await fetch(apiUrl('/shows'), {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ imdbId: id }),
-           });
-          const result = await response.json();
-
-          if (result.success) {
-            document.getElementById('searchInput').value = '';
-            document.getElementById('searchResults').style.display = 'none';
-            loadShows();
-            showToast(`Added "${name}" to your list`);
-          } else if (result.exists) {
-            showToast('Show already in your list');
-          } else if (result.error) {
-            showToast(result.error);
-          } else {
-            showToast('Failed to add show');
-          }
+          await navigator.clipboard.writeText(url);
+          setCopyStatus('Copied');
         } catch (e) {
-          alert('Error adding show');
+          setCopyStatus('Copy failed');
         }
       }
 
-       async function removeShow(imdbId) {
-         try {
-           await fetch(apiUrl(`/shows/${imdbId}`), { method: 'DELETE' });
-           loadShows();
-         } catch (e) {
-           alert('Error removing show');
-         }
-       }
-
-      async function clearAll() {
-        if (
-          confirm('Are you sure you want to remove all shows from your list?')
-        ) {
-          try {
-             const payload = await fetch(apiUrl('/shows')).then((r) =>
-               r.json(),
-             );
-             for (const show of payload.shows || []) {
-               await removeShow(show.id);
-             }
-             loadShows();
-          } catch (e) {
-            alert('Error clearing shows');
-          }
-        }
+      function setCopyStatus(text) {
+        const status = document.getElementById('copyStatus');
+        status.textContent = text;
+        setTimeout(() => {
+          status.textContent = '';
+        }, 2000);
       }
 
-      function filterMyShows(query) {
-        query = query.toLowerCase().trim();
+      document.getElementById('copyInstall').addEventListener('click', () => {
+        copyInstallUrl();
+      });
 
-        if (query === '') {
-          displayedShows = [...allShows];
-        } else {
-          displayedShows = allShows.filter((show) =>
-            show.name.toLowerCase().includes(query),
-          );
-        }
-
-        currentLimit = 4;
-        updatePagination();
-      }
-
-      function showMore() {
-        currentLimit += SHOWS_PER_PAGE;
-        updatePagination();
-      }
-
-      function showAll() {
-        currentLimit = displayedShows.length;
-        updatePagination();
-      }
-
-      function updatePagination() {
-        const container = document.getElementById('showsList');
-        const emptyState = document.getElementById('emptyState');
-        const noSearchResults = document.getElementById('noSearchResults');
-        const paginationControls =
-          document.getElementById('paginationControls');
-        const showMoreBtn = document.getElementById('showMoreBtn');
-        const showAllBtn = document.getElementById('showAllBtn');
-        const countEl = document.getElementById('showCount');
-        const limitEl = document.getElementById('showLimit');
-
-        countEl.innerHTML = `${allShows.length} / <span id="showLimit">${limitEl.textContent}</span>`;
-
-        if (allShows.length === 0) {
-          container.innerHTML = '';
-          emptyState.style.display = 'block';
-          noSearchResults.style.display = 'none';
-          paginationControls.style.display = 'none';
-          return;
-        }
-
-        emptyState.style.display = 'none';
-
-        if (displayedShows.length === 0) {
-          container.innerHTML = '';
-          noSearchResults.style.display = 'block';
-          paginationControls.style.display = 'none';
-          return;
-        }
-
-        noSearchResults.style.display = 'none';
-
-        const showsToShow = displayedShows.slice(0, currentLimit);
-        container.innerHTML = showsToShow
-          .map(
-            (show) => `
-                <div class="show-card">
-                    <div class="show-image-wrapper">
-                        <img src="${show.poster}" alt="${show.name}" class="show-poster" onerror="this.src='https://via.placeholder.com/100x150?text=?'">
-                        <button class="btn-remove" onclick="removeShow('${show.id}')" title="Remove show">
-                            <span>×</span>
-                        </button>
-                    </div>
-                    <div class="show-info">
-                        <h3 class="show-name">${show.name}</h3>
-                    </div>
-                </div>
-            `,
-          )
-          .join('');
-
-        const hasMore = currentLimit < displayedShows.length;
-        const showAllVisible =
-          displayedShows.length > SHOWS_PER_PAGE && displayedShows.length > 4;
-
-        if (hasMore || showAllVisible) {
-          paginationControls.style.display = 'flex';
-          showMoreBtn.style.display = hasMore ? 'inline-flex' : 'none';
-          showAllBtn.style.display =
-            showAllVisible && currentLimit < displayedShows.length
-              ? 'inline-flex'
-              : 'none';
-        } else {
-          paginationControls.style.display = 'none';
-        }
-      }
-
-      function showToast(message) {
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2000);
-      }
-
-       function showSearchResults() {
-        const query = document.getElementById('searchInput').value.trim();
-        if (
-          query &&
-          document.getElementById('searchResults').children.length > 0
-        ) {
-          document.getElementById('searchResults').style.display = 'block';
-        }
-      }
-
-       document.addEventListener('click', (e) => {
-         if (!e.target.closest('.search-container')) {
-           document.getElementById('searchResults').style.display = 'none';
-         }
-       });
-
-      function initUserKey() {
-        const urlKey = new URLSearchParams(window.location.search).get('user');
-        userKey = urlKey ? urlKey.trim() : '';
-        setKeyMode(Boolean(userKey));
-        const installPage = document.getElementById('installPageUrl');
-        if (installPage) {
-          installPage.textContent = `${window.location.origin}`;
-        }
-      }
-
-      function setKeyMode(enabled) {
-        const installOnly = document.getElementById('installOnly');
-        const keySections = document.querySelectorAll('.requires-key');
-        installOnly.style.display = enabled ? 'none' : 'block';
-        keySections.forEach((section) => {
-          section.style.display = enabled ? 'block' : 'none';
-        });
-      }
-
-      function apiUrl(path) {
-        const separator = path.includes('?') ? '&' : '?';
-        return `${API_BASE}${path}${separator}user=${encodeURIComponent(userKey)}`;
-      }
-
-       initTheme();
-       initUserKey();
-       loadShows();
+      setInstallUrl();
     </script>
   </body>
 </html>

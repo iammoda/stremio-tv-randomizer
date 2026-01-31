@@ -80,7 +80,8 @@ stremio-tv-randomizer/
 ├── addon.js           # Main addon server and logic
 ├── package.json       # Node.js dependencies
 └── public/
-    ├── index.html     # Settings web interface
+    ├── index.html     # Install page
+    ├── myshows.html   # Settings web interface
     └── styles.css     # Styles for settings page
 ```
 
