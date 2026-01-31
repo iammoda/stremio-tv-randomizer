@@ -438,10 +438,15 @@ app.get('/api/shows', (req, res) => {
 });
 
 app.post('/api/shows', async (req, res) => {
-  const { imdbId } = req.body;
-  const userId = getUserId(req);
-  const result = await addShow(userId, imdbId);
-  res.json(result);
+  try {
+    const { imdbId } = req.body;
+    const userId = getUserId(req);
+    const result = await addShow(userId, imdbId);
+    res.json(result);
+  } catch (e) {
+    console.error('Add show error:', e);
+    res.status(500).json({ success: false, error: 'Failed to add show' });
+  }
 });
 
 app.delete('/api/shows/:imdbId', (req, res) => {

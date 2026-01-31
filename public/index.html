@@ -305,7 +305,7 @@
             showToast(`Added "${name}" to your list`);
           } else if (result.exists) {
             showToast('Show already in your list');
-          } else if (result.error && result.error.includes('Maximum')) {
+          } else if (result.error) {
             showToast(result.error);
           } else {
             showToast('Failed to add show');
