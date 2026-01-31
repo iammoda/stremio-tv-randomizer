@@ -52,6 +52,58 @@ async function fetchMeta(type, id) {
   return null;
 }
 
+function parseEpisodeId(id) {
+  if (!id || !id.startsWith('tt') || !id.includes(':')) return null;
+  const parts = id.split(':');
+  if (parts.length < 3) return null;
+  const season = Number(parts[1]);
+  const episode = Number(parts[2]);
+  if (Number.isNaN(season) || Number.isNaN(episode)) return null;
+  return { showId: parts[0], season, episode };
+}
+
+function findEpisodeVideo(meta, season, episode) {
+  if (!meta || !meta.meta || !meta.meta.videos) return null;
+  return meta.meta.videos.find(
+    (v) =>
+      Number(v.season) === season &&
+      Number(v.episode || v.number) === episode,
+  );
+}
+
+function buildEpisodeMeta(meta, episodeId, season, episode, video) {
+  const videoTitle =
+    video && (video.name || video.title)
+      ? video.name || video.title
+      : `S${season}E${episode}`;
+  return {
+    meta: {
+      id: episodeId,
+      type: 'series',
+      name: `${meta.meta.name} - ${videoTitle}`,
+      poster: meta.meta.poster,
+      background: meta.meta.background,
+      description: video ? video.description || video.overview || '' : '',
+      releaseInfo: video && video.released ? video.released.substring(0, 4) : '',
+      videos: [
+        {
+          id: episodeId,
+          title: videoTitle,
+          season,
+          episode: video ? video.episode || video.number || episode : episode,
+          released: video ? video.released || video.firstAired || '' : '',
+        },
+      ],
+      behaviorHints: {
+        bingeGroup: meta.meta.id,
+        featured: true,
+        videoSize: 1080,
+        defaultVideoId: episodeId,
+      },
+    },
+  };
+}
+
 const MAX_SHOWS = 150;
 
 async function addShow(imdbId) {
@@ -99,36 +151,6 @@ async function addShow(imdbId) {
 function removeShow(imdbId) {
   userShows = userShows.filter((s) => s.id !== imdbId);
   saveShows();
-}
-
-async function getRandomStream() {
-  if (userShows.length === 0) {
-    return { streams: [] };
-  }
-
-  const randomShow = userShows[Math.floor(Math.random() * userShows.length)];
-  const meta = await fetchMeta('series', randomShow.id);
-
-  if (meta && meta.meta && meta.meta.videos) {
-    const videos = meta.meta.videos;
-    if (videos.length > 0) {
-      const randomEpisode = videos[Math.floor(Math.random() * videos.length)];
-      const title =
-        randomEpisode.name ||
-        randomEpisode.title ||
-        `Season ${randomEpisode.season}, Episode ${randomEpisode.episode}`;
-      return {
-        streams: [
-          {
-            title: `${randomShow.name} - ${title}`,
-            url: `stremio://${randomEpisode.id}`,
-          },
-        ],
-      };
-    }
-  }
-
-  return { streams: [] };
 }
 
 async function getShowStreams(imdbId) {
@@ -227,50 +249,22 @@ function handleCatalog(type, id, extra) {
 }
 
 async function handleMeta(type, id) {
-  if (id.includes(':') && id.startsWith('tt')) {
-    const parts = id.split(':');
-    const showId = parts[0];
-    const season = Number(parts[1]);
-    const episode = Number(parts[2]);
-
-    const meta = await fetchMeta('series', showId);
-    if (meta && meta.meta && meta.meta.videos) {
-      const video = meta.meta.videos.find(
-        (v) =>
-          Number(v.season) === season &&
-          Number(v.episode || v.number) === episode,
+  const episodeInfo = parseEpisodeId(id);
+  if (episodeInfo) {
+    const meta = await fetchMeta('series', episodeInfo.showId);
+    if (meta && meta.meta) {
+      const video = findEpisodeVideo(
+        meta,
+        episodeInfo.season,
+        episodeInfo.episode,
       );
-      const videoTitle =
-        video && (video.name || video.title)
-          ? video.name || video.title
-          : `S${season}E${episode}`;
-      return {
-        meta: {
-          id,
-          type: 'series',
-          name: `${meta.meta.name} - ${videoTitle}`,
-          poster: meta.meta.poster,
-          background: meta.meta.background,
-          description: video ? video.description || video.overview || '' : '',
-          releaseInfo:
-            video && video.released ? video.released.substring(0, 4) : '',
-          videos: [
-            {
-              id,
-              title: videoTitle,
-              season,
-              episode: video ? video.episode || video.number || episode : episode,
-              released: video ? video.released || video.firstAired || '' : '',
-            },
-          ],
-          behaviorHints: {
-            bingeGroup: showId,
-            featured: true,
-            videoSize: 1080,
-            defaultVideoId: id,
-          },
-        },
-      };
+      return buildEpisodeMeta(
+        meta,
+        id,
+        episodeInfo.season,
+        episodeInfo.episode,
+        video,
+      );
     }
   }
 
@@ -330,7 +324,7 @@ async function handleMeta(type, id) {
 }
 
 async function handleStream(type, id) {
-  if (id.includes(':') && id.startsWith('tt')) {
+  if (parseEpisodeId(id)) {
     return { streams: [] };
   }
 
