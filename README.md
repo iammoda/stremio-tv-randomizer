@@ -157,10 +157,6 @@ The install page generates a key and builds the `manifest.json?user=KEY` URL so 
 
 MIT License - Feel free to modify and distribute.
 
-## Contributing
-
-Pull requests are welcome! Please open an issue first to discuss changes.
-
 ## Acknowledgments
 
 - [Stremio](https://www.strem.io/) - For the addon platform
