@@ -39,7 +39,7 @@ A Stremio addon that lets you add your favorite TV shows and automatically play 
 5. In Stremio:
    - Go to **Addons**
    - Click **"Install from URL"**
-   - Enter: `http://localhost:7001/manifest.json`
+- Enter: `http://localhost:7001/manifest.json?user=YOUR_KEY`
    - Click **Install**
 
 ### Accessing the Settings Page
@@ -58,7 +58,7 @@ Here you can:
 
 ## Usage
 
-1. **Add Shows**: Use the settings page (`http://localhost:7001/settings`) to search and add TV shows
+1. **Set User Key**: Open the settings page (`http://localhost:7001/settings`) and set your **User Key**. Use the same key on every device.
 
 2. **Find Random Episode**: In Stremio's **Discover** section, find the "Find Random Episode" catalog
 
@@ -70,7 +70,7 @@ Here you can:
 
 - **Metadata**: Uses TVmaze API for show search and Cinemeta for episode information
 - **Streaming**: Delegates to other addons (Torrentio, GDrive, etc.) for actual video streams
-- **Storage**: Show list is stored locally in `data/shows.json`
+- **Storage**: Show list is stored in MongoDB per **User Key**
 - **CORS**: Enabled for cross-origin requests
 
 ## Project Structure
@@ -79,8 +79,6 @@ Here you can:
 stremio-tv-randomizer/
 ├── addon.js           # Main addon server and logic
 ├── package.json       # Node.js dependencies
-├── data/
-│   └── shows.json     # Local storage for show list
 └── public/
     ├── index.html     # Settings web interface
     └── styles.css     # Styles for settings page
@@ -100,6 +98,15 @@ Edit `addon.js` and change:
 ```javascript
 const MAX_SHOWS = 150;
 ```
+
+## Deployment (Vercel + MongoDB)
+
+1. Create a MongoDB database (MongoDB Atlas recommended).
+2. In Vercel, set the `MONGODB_URI` environment variable.
+3. Deploy the repo to Vercel.
+4. Open the settings page on your Vercel URL to generate a **User Key** and copy the install URL.
+
+The addon uses the `user` query param (e.g. `https://your-app.vercel.app/manifest.json?user=YOUR_KEY`) so the same key shares the same show list across devices.
 
 ## Technologies Used
 

@@ -19,6 +19,24 @@
         </button>
       </header>
 
+      <section class="user-section">
+        <h2 class="section-title">User Key</h2>
+        <div class="user-key-row">
+          <input
+            type="text"
+            id="userKeyInput"
+            placeholder="Enter your user key"
+          />
+          <button class="btn" onclick="saveUserKey()">Save</button>
+          <button class="btn btn-secondary" onclick="generateUserKey()">
+            New Key
+          </button>
+        </div>
+        <p class="hint">
+          Use the same key on all devices to share your show list.
+        </p>
+      </section>
+
       <section class="add-section">
         <h2 class="section-title">Add Show</h2>
         <div class="search-container">
@@ -137,7 +155,7 @@
             <p>Click <strong>"Install"</strong> to enable the addon</p>
           </div>
           <p class="install-note">
-            Note: The addon server must be running for it to work in Stremio.
+            Note: The install URL includes your User Key.
           </p>
         </div>
       </section>
@@ -148,13 +166,15 @@
     </div>
 
     <script>
-      const API_BASE = '/api';
-      let searchTimeout = null;
-      let isDarkMode = true;
-      let allShows = [];
-      let displayedShows = [];
-      let currentLimit = 4;
-      const SHOWS_PER_PAGE = 4;
+       const API_BASE = '/api';
+       const USER_KEY_STORAGE = 'tvRandomizerUserKey';
+       let searchTimeout = null;
+       let isDarkMode = true;
+       let allShows = [];
+       let displayedShows = [];
+       let currentLimit = 4;
+       const SHOWS_PER_PAGE = 4;
+       let userKey = '';
 
       function initTheme() {
         const savedTheme = localStorage.getItem('tvRandomizerTheme');
@@ -179,12 +199,17 @@
         icon.textContent = isDarkMode ? '🌙' : '☀️';
       }
 
-      async function loadShows() {
-        try {
-          const response = await fetch(`${API_BASE}/shows`);
-          const data = await response.json();
-          allShows = data.shows || [];
-          document.getElementById('showLimit').textContent = data.limit || 150;
+       async function loadShows() {
+         if (!userKey) {
+           allShows = [];
+           updatePagination();
+           return;
+         }
+         try {
+           const response = await fetch(apiUrl('/shows'));
+           const data = await response.json();
+           allShows = data.shows || [];
+           document.getElementById('showLimit').textContent = data.limit || 150;
           currentLimit = 4;
           filterMyShows(document.getElementById('myShowsSearch').value);
         } catch (e) {
@@ -192,20 +217,20 @@
         }
       }
 
-      async function searchShows() {
-        const query = document.getElementById('searchInput').value.trim();
-        if (!query) return;
+       async function searchShows() {
+         const query = document.getElementById('searchInput').value.trim();
+         if (!query) return;
 
         const resultsContainer = document.getElementById('searchResults');
         resultsContainer.innerHTML =
           '<div class="search-loading">Searching...</div>';
         resultsContainer.style.display = 'block';
 
-        try {
-          const response = await fetch(
-            `${API_BASE}/search?q=${encodeURIComponent(query)}`,
-          );
-          const data = await response.json();
+         try {
+           const response = await fetch(
+             apiUrl(`/search?q=${encodeURIComponent(query)}`),
+           );
+           const data = await response.json();
 
           if (data.metas && data.metas.length > 0) {
             renderSearchResults(data.metas);
@@ -260,13 +285,17 @@
           .replace(/\t/g, '\\t');
       }
 
-      async function selectShow(id, name, poster) {
-        try {
-          const response = await fetch(`${API_BASE}/shows`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imdbId: id }),
-          });
+       async function selectShow(id, name, poster) {
+         if (!userKey) {
+           showToast('Set your user key first');
+           return;
+         }
+         try {
+           const response = await fetch(apiUrl('/shows'), {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ imdbId: id }),
+           });
           const result = await response.json();
 
           if (result.success) {
@@ -286,27 +315,27 @@
         }
       }
 
-      async function removeShow(imdbId) {
-        try {
-          await fetch(`${API_BASE}/shows/${imdbId}`, { method: 'DELETE' });
-          loadShows();
-        } catch (e) {
-          alert('Error removing show');
-        }
-      }
+       async function removeShow(imdbId) {
+         try {
+           await fetch(apiUrl(`/shows/${imdbId}`), { method: 'DELETE' });
+           loadShows();
+         } catch (e) {
+           alert('Error removing show');
+         }
+       }
 
       async function clearAll() {
         if (
           confirm('Are you sure you want to remove all shows from your list?')
         ) {
           try {
-            const shows = await fetch(`${API_BASE}/shows`).then((r) =>
-              r.json(),
-            );
-            for (const show of shows) {
-              await removeShow(show.id);
-            }
-            loadShows();
+             const payload = await fetch(apiUrl('/shows')).then((r) =>
+               r.json(),
+             );
+             for (const show of payload.shows || []) {
+               await removeShow(show.id);
+             }
+             loadShows();
           } catch (e) {
             alert('Error clearing shows');
           }
@@ -413,7 +442,7 @@
         setTimeout(() => toast.remove(), 2000);
       }
 
-      function showSearchResults() {
+       function showSearchResults() {
         const query = document.getElementById('searchInput').value.trim();
         if (
           query &&
@@ -423,14 +452,67 @@
         }
       }
 
-      document.addEventListener('click', (e) => {
-        if (!e.target.closest('.search-container')) {
-          document.getElementById('searchResults').style.display = 'none';
-        }
-      });
+       document.addEventListener('click', (e) => {
+         if (!e.target.closest('.search-container')) {
+           document.getElementById('searchResults').style.display = 'none';
+         }
+       });
 
-      initTheme();
-      loadShows();
+       function apiUrl(path) {
+         const separator = path.includes('?') ? '&' : '?';
+         return `${API_BASE}${path}${separator}user=${encodeURIComponent(userKey)}`;
+       }
+
+       function generateKey() {
+         if (crypto.randomUUID) return crypto.randomUUID();
+         const bytes = new Uint8Array(16);
+         crypto.getRandomValues(bytes);
+         return Array.from(bytes)
+           .map((b) => b.toString(16).padStart(2, '0'))
+           .join('');
+       }
+
+       function setUserKey(value) {
+         const nextKey = value.trim();
+         if (!nextKey) {
+           showToast('User key cannot be empty');
+           return;
+         }
+         userKey = nextKey;
+         localStorage.setItem(USER_KEY_STORAGE, userKey);
+         document.getElementById('userKeyInput').value = userKey;
+         updateInstallUrl();
+         loadShows();
+       }
+
+       function initUserKey() {
+         const urlKey = new URLSearchParams(window.location.search).get('user');
+         const savedKey = localStorage.getItem(USER_KEY_STORAGE);
+         const initialKey = urlKey || savedKey || generateKey();
+         setUserKey(initialKey);
+       }
+
+       function saveUserKey() {
+         const input = document.getElementById('userKeyInput').value;
+         setUserKey(input);
+       }
+
+       function generateUserKey() {
+         const nextKey = generateKey();
+         setUserKey(nextKey);
+         showToast('New key generated');
+       }
+
+       function updateInstallUrl() {
+         const base = window.location.origin;
+         const url = `${base}/manifest.json?user=${encodeURIComponent(userKey)}`;
+         const installEl = document.getElementById('installUrl');
+         installEl.textContent = url;
+       }
+
+       initTheme();
+       initUserKey();
+       loadShows();
     </script>
   </body>
 </html>

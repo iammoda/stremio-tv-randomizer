@@ -1,48 +1,23 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const http = require('http');
+const { MongoClient } = require('mongodb');
+const fetchFn = global.fetch || require('node-fetch');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const CINEMETA_URL = 'https://v3-cinemeta.strem.io';
-const DATA_FILE = path.join(__dirname, 'data', 'shows.json');
-
-let userShows = [];
-
-function loadShows() {
-  try {
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    if (fs.existsSync(DATA_FILE)) {
-      const data = fs.readFileSync(DATA_FILE, 'utf8');
-      userShows = JSON.parse(data);
-    }
-  } catch (e) {
-    console.log('Starting with empty show list');
-  }
-}
-
-function saveShows() {
-  try {
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(userShows, null, 2));
-  } catch (e) {
-    console.log('Could not save shows');
-  }
-}
+const MONGODB_URI = process.env.MONGODB_URI;
+let mongoClient;
+let mongoDb;
+let mongoClientPromise;
 
 async function fetchMeta(type, id) {
   try {
-    const response = await fetch(`${CINEMETA_URL}/meta/${type}/${id}.json`);
+    const response = await fetchFn(`${CINEMETA_URL}/meta/${type}/${id}.json`);
     if (response.ok) {
       return await response.json();
     }
@@ -50,6 +25,79 @@ async function fetchMeta(type, id) {
     console.error('Failed to fetch meta:', e);
   }
   return null;
+}
+
+async function getDb() {
+  if (!MONGODB_URI) {
+    throw new Error('Missing MONGODB_URI');
+  }
+  if (mongoDb) return mongoDb;
+  if (!mongoClient) {
+    mongoClient = new MongoClient(MONGODB_URI);
+  }
+  if (!mongoClientPromise) {
+    mongoClientPromise = mongoClient.connect();
+  }
+  await mongoClientPromise;
+  mongoDb = mongoClient.db();
+  return mongoDb;
+}
+
+function getUserId(req) {
+  const userId =
+    (req.query.user || req.query.uid || req.headers['x-user-id'] || '').trim();
+  return userId || null;
+}
+
+async function getUserShows(userId) {
+  if (!userId) return [];
+  const db = await getDb();
+  const rows = await db
+    .collection('shows')
+    .find({ userId })
+    .sort({ createdAt: -1 })
+    .project({ _id: 0, showId: 1, name: 1, poster: 1, background: 1 })
+    .toArray();
+  return rows.map((row) => ({
+    id: row.showId,
+    name: row.name,
+    poster: row.poster,
+    background: row.background,
+  }));
+}
+
+async function getShowCount(userId) {
+  if (!userId) return 0;
+  const db = await getDb();
+  return db.collection('shows').countDocuments({ userId });
+}
+
+async function hasShow(userId, showId) {
+  if (!userId) return false;
+  const db = await getDb();
+  const existing = await db
+    .collection('shows')
+    .findOne({ userId, showId }, { projection: { _id: 1 } });
+  return Boolean(existing);
+}
+
+async function insertShow(userId, show) {
+  if (!userId) return;
+  const db = await getDb();
+  await db.collection('shows').insertOne({
+    userId,
+    showId: show.id,
+    name: show.name,
+    poster: show.poster,
+    background: show.background,
+    createdAt: new Date(),
+  });
+}
+
+async function deleteShow(userId, showId) {
+  if (!userId) return;
+  const db = await getDb();
+  await db.collection('shows').deleteOne({ userId, showId });
 }
 
 function parseEpisodeId(id) {
@@ -106,17 +154,24 @@ function buildEpisodeMeta(meta, episodeId, season, episode, video) {
 
 const MAX_SHOWS = 150;
 
-async function addShow(imdbId) {
+async function addShow(userId, imdbId) {
   let actualImdbId = imdbId;
 
-  if (userShows.length >= MAX_SHOWS) {
+  if (!userId) {
+    return { success: false, error: 'Missing user key' };
+  }
+
+  const showCount = await getShowCount(userId);
+  if (showCount >= MAX_SHOWS) {
     return { success: false, error: `Maximum of ${MAX_SHOWS} shows allowed` };
   }
 
   if (imdbId.startsWith('tvmaze-')) {
     const tvmazeId = imdbId.replace('tvmaze-', '');
     try {
-      const response = await fetch(`https://api.tvmaze.com/shows/${tvmazeId}`);
+      const response = await fetchFn(
+        `https://api.tvmaze.com/shows/${tvmazeId}`,
+      );
       const show = await response.json();
       if (show.externals && show.externals.imdb) {
         actualImdbId = show.externals.imdb;
@@ -132,44 +187,23 @@ async function addShow(imdbId) {
   const meta = await fetchMeta('series', actualImdbId);
 
   if (meta && meta.meta) {
-    const exists = userShows.find((s) => s.id === actualImdbId);
+    const exists = await hasShow(userId, actualImdbId);
     if (exists) {
       return { success: false, exists: true };
     }
-    userShows.push({
+    await insertShow(userId, {
       id: actualImdbId,
       name: meta.meta.name,
       poster: meta.meta.poster,
       background: meta.meta.background,
     });
-    saveShows();
     return { success: true };
   }
   return { success: false, error: 'Failed to fetch show metadata' };
 }
 
-function removeShow(imdbId) {
-  userShows = userShows.filter((s) => s.id !== imdbId);
-  saveShows();
-}
-
-async function getShowStreams(imdbId) {
-  const meta = await fetchMeta('series', imdbId);
-  if (meta && meta.meta && meta.meta.videos) {
-    return {
-      streams: meta.meta.videos.map((video) => {
-        const title =
-          video.name ||
-          video.title ||
-          `S${video.season || video.number}E${video.episode}`;
-        return {
-          title: `${meta.meta.name} - ${title}`,
-          url: `stremio://${video.id}`,
-        };
-      }),
-    };
-  }
-  return { streams: [] };
+async function removeShow(userId, imdbId) {
+  await deleteShow(userId, imdbId);
 }
 
 const manifest = {
@@ -178,6 +212,15 @@ const manifest = {
   name: 'TV Show Randomizer',
   description: 'Randomly play episodes from your favorite TV shows',
   logo: 'https://via.placeholder.com/256x256.png?text=Random+TV',
+  configurable: true,
+  config: [
+    {
+      key: 'user',
+      type: 'text',
+      title: 'User Key',
+      required: true,
+    },
+  ],
   resources: ['catalog', 'meta', 'stream'],
   types: ['series', 'episode'],
   catalogs: [
@@ -201,9 +244,10 @@ const manifest = {
   idPrefixes: ['tt', 'random-episode-action'],
 };
 
-function handleCatalog(type, id, extra) {
+async function handleCatalog(type, id, extra, userId) {
   if (id === 'random-episode') {
     const items = [];
+    const userShows = await getUserShows(userId);
 
     if (userShows.length > 0) {
       items.push({
@@ -235,7 +279,7 @@ function handleCatalog(type, id, extra) {
 
   if (id === 'my-shows') {
     return {
-      metas: userShows.map((show) => ({
+      metas: (await getUserShows(userId)).map((show) => ({
         id: show.id,
         type: 'series',
         name: show.name,
@@ -248,7 +292,7 @@ function handleCatalog(type, id, extra) {
   return { metas: [] };
 }
 
-async function handleMeta(type, id) {
+async function handleMeta(type, id, userId) {
   const episodeInfo = parseEpisodeId(id);
   if (episodeInfo) {
     const meta = await fetchMeta('series', episodeInfo.showId);
@@ -269,6 +313,7 @@ async function handleMeta(type, id) {
   }
 
   if (id === 'random-episode-action') {
+    const userShows = await getUserShows(userId);
     if (userShows.length === 0) {
       return { meta: null };
     }
@@ -314,7 +359,7 @@ async function handleMeta(type, id) {
     return { meta: null };
   }
 
-  const userShow = userShows.find((s) => s.id === id);
+  const userShow = userId ? await hasShow(userId, id) : false;
   if (userShow) {
     const meta = await fetchMeta('series', id);
     if (meta) return meta;
@@ -355,7 +400,7 @@ app.get('/api/search', async (req, res) => {
   }
 
   try {
-    const response = await fetch(
+    const response = await fetchFn(
       `https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`,
     );
     const data = await response.json();
@@ -380,18 +425,37 @@ app.get('/api/search', async (req, res) => {
 });
 
 app.get('/api/shows', (req, res) => {
-  res.json({ shows: userShows, limit: MAX_SHOWS });
+  const userId = getUserId(req);
+  if (!userId) {
+    return res.status(400).json({ shows: [], limit: MAX_SHOWS });
+  }
+  getUserShows(userId)
+    .then((shows) => res.json({ shows, limit: MAX_SHOWS }))
+    .catch((e) => {
+      console.error('Load shows error:', e);
+      res.status(500).json({ shows: [], limit: MAX_SHOWS });
+    });
 });
 
 app.post('/api/shows', async (req, res) => {
   const { imdbId } = req.body;
-  const result = await addShow(imdbId);
+  const userId = getUserId(req);
+  const result = await addShow(userId, imdbId);
   res.json(result);
 });
 
 app.delete('/api/shows/:imdbId', (req, res) => {
-  removeShow(req.params.imdbId);
-  res.json({ success: true, shows: userShows });
+  const userId = getUserId(req);
+  if (!userId) {
+    return res.status(400).json({ success: false });
+  }
+  removeShow(userId, req.params.imdbId)
+    .then(async () => ({ success: true, shows: await getUserShows(userId) }))
+    .then((payload) => res.json(payload))
+    .catch((e) => {
+      console.error('Remove show error:', e);
+      res.status(500).json({ success: false });
+    });
 });
 
 app.get('/catalog/:type/:id.json', async (req, res) => {
@@ -399,7 +463,13 @@ app.get('/catalog/:type/:id.json', async (req, res) => {
     console.log('Catalog request:', req.params.type, req.params.id, req.query);
     const extra = {};
     if (req.query.search) extra.search = req.query.search;
-    const result = handleCatalog(req.params.type, req.params.id, extra);
+    const userId = getUserId(req);
+    const result = await handleCatalog(
+      req.params.type,
+      req.params.id,
+      extra,
+      userId,
+    );
     res.json(result);
   } catch (e) {
     console.error('Catalog error:', e);
@@ -410,7 +480,8 @@ app.get('/catalog/:type/:id.json', async (req, res) => {
 app.get('/meta/:type/:id.json', async (req, res) => {
   try {
     console.log('Meta request:', req.params.type, req.params.id);
-    const result = await handleMeta(req.params.type, req.params.id);
+    const userId = getUserId(req);
+    const result = await handleMeta(req.params.type, req.params.id, userId);
     res.json(result);
   } catch (e) {
     console.error('Meta error:', e);
@@ -431,13 +502,15 @@ app.get('/stream/:type/:id.json', async (req, res) => {
 
 app.use(express.static('public'));
 
-loadShows();
-
 const PORT = process.env.PORT || 7001;
-const server = http.createServer(app);
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`TV Randomizer Addon running on http://localhost:${PORT}`);
-  console.log(`Settings page: http://localhost:${PORT}/settings`);
-  console.log(`Install in Stremio: http://localhost:${PORT}/`);
-});
+if (require.main === module) {
+  const server = http.createServer(app);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`TV Randomizer Addon running on http://localhost:${PORT}`);
+    console.log(`Settings page: http://localhost:${PORT}/settings`);
+    console.log(`Install in Stremio: http://localhost:${PORT}/`);
+  });
+}
+
+module.exports = app;
