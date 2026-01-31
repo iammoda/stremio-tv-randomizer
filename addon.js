@@ -408,10 +408,6 @@ app.get('/manifest.json', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.redirect('/install');
-});
-
-app.get('/install', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'install.html'));
 });
 
