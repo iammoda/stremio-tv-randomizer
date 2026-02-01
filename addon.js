@@ -129,6 +129,35 @@ function parseEpisodeId(id) {
   return { showId: parts[0], season, episode };
 }
 
+function getSeasonEpisodeFromVideo(video) {
+  let season = Number(video && video.season);
+  let episode = Number(video && (video.episode || video.number));
+  if (!Number.isFinite(season) || !Number.isFinite(episode)) {
+    const parsed = video && typeof video.id === 'string' ? parseEpisodeId(video.id) : null;
+    if (parsed) {
+      season = parsed.season;
+      episode = parsed.episode;
+    }
+  }
+  if (!Number.isFinite(season)) season = 0;
+  if (!Number.isFinite(episode)) episode = 0;
+  return { season, episode };
+}
+
+function buildEpisodeId(seriesId, season, episode, fallbackId) {
+  if (fallbackId && typeof fallbackId === 'string' && fallbackId.startsWith('tt') && fallbackId.includes(':')) {
+    return fallbackId;
+  }
+  if (!seriesId) return fallbackId || '';
+  return `${seriesId}:${season}:${episode}`;
+}
+
+function normalizeEpisode(seriesMeta, video) {
+  const { season, episode } = getSeasonEpisodeFromVideo(video || {});
+  const id = buildEpisodeId(seriesMeta.meta.id, season, episode, video && video.id);
+  return { id, season, episode, video };
+}
+
 function findEpisodeVideo(meta, season, episode) {
   if (!meta || !meta.meta || !meta.meta.videos) return null;
   return meta.meta.videos.find(
@@ -142,24 +171,28 @@ function buildEpisodeMeta(seriesMeta, episodeId, season, episode, video) {
   const videoTitle =
     video && (video.name || video.title)
       ? video.name || video.title
-      : `S${season}E${episode}`;
+      : seriesMeta.meta.name;
   const releaseInfo =
     (video && video.released ? video.released.substring(0, 4) : '') ||
     seriesMeta.meta.releaseInfo ||
+    '';
+  const description =
+    (video && (video.description || video.overview)) ||
+    seriesMeta.meta.description ||
     '';
   return {
     meta: {
       id: episodeId,
       type: 'episode',
-      name: seriesMeta.meta.name,
+      name: videoTitle,
       series: seriesMeta.meta.name,
       seriesId: seriesMeta.meta.id,
       season,
-      episode: video ? video.episode || video.number || episode : episode,
+      episode,
       logo: seriesMeta.meta.logo,
       poster: seriesMeta.meta.poster,
       background: seriesMeta.meta.background,
-      description: video ? video.description || video.overview || '' : '',
+      description,
       releaseInfo,
       released: video ? video.released || video.firstAired || '' : '',
       imdbRating: seriesMeta.meta.imdbRating,
@@ -351,14 +384,20 @@ async function handleMeta(type, id, userId) {
     const meta = await fetchMeta('series', randomShow.id);
 
     if (meta && meta.meta && meta.meta.videos && meta.meta.videos.length > 0) {
-      const randomEpisode =
-        meta.meta.videos[Math.floor(Math.random() * meta.meta.videos.length)];
+      const normalizedVideos = meta.meta.videos.map((video) =>
+        normalizeEpisode(meta, video),
+      );
+      const streamable = normalizedVideos.filter(
+        (item) => item.season > 0 && item.episode > 0,
+      );
+      const pool = streamable.length > 0 ? streamable : normalizedVideos;
+      const normalized = pool[Math.floor(Math.random() * pool.length)];
       return buildEpisodeMeta(
         meta,
-        randomEpisode.id,
-        randomEpisode.season || 0,
-        randomEpisode.episode || randomEpisode.number || 1,
-        randomEpisode,
+        normalized.id,
+        normalized.season,
+        normalized.episode,
+        normalized.video,
       );
     }
 
