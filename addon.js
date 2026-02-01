@@ -294,11 +294,6 @@ const manifest = {
     },
     {
       type: 'series',
-      id: 'my-shows',
-      name: 'My Shows',
-    },
-    {
-      type: 'series',
       id: 'add-shows',
       name: 'Add Shows',
     },
@@ -337,18 +332,6 @@ async function handleCatalog(type, id, extra, userId) {
     );
 
     return { metas: items };
-  }
-
-  if (id === 'my-shows') {
-    return {
-      metas: (await getUserShows(userId)).map((show) => ({
-        id: show.id,
-        type: 'series',
-        name: show.name,
-        poster: show.poster,
-        background: show.background,
-      })),
-    };
   }
 
   return { metas: [] };
