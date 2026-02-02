@@ -129,6 +129,12 @@ function parseEpisodeId(id) {
   return { showId: parts[0], season, episode };
 }
 
+function formatEpisodeLabel(season, episode) {
+  const safeSeason = Number.isFinite(season) ? season : 0;
+  const safeEpisode = Number.isFinite(episode) ? episode : 0;
+  return `S${String(safeSeason).padStart(2, '0')}E${String(safeEpisode).padStart(2, '0')}`;
+}
+
 function getSeasonEpisodeFromVideo(video) {
   let season = Number(video && video.season);
   let episode = Number(video && (video.episode || video.number));
@@ -168,10 +174,13 @@ function findEpisodeVideo(meta, season, episode) {
 }
 
 function buildEpisodeMeta(seriesMeta, episodeId, season, episode, video) {
-  const videoTitle =
-    video && (video.name || video.title)
-      ? video.name || video.title
-      : seriesMeta.meta.name;
+  const episodeTitle =
+    video && (video.name || video.title) ? video.name || video.title : '';
+  const label = formatEpisodeLabel(season, episode);
+  const showName = seriesMeta.meta.name;
+  const displayTitle = episodeTitle
+    ? `${showName} — ${label} ${episodeTitle}`
+    : `${showName} — ${label}`;
   const releaseInfo =
     (video && video.released ? video.released.substring(0, 4) : '') ||
     seriesMeta.meta.releaseInfo ||
@@ -184,8 +193,8 @@ function buildEpisodeMeta(seriesMeta, episodeId, season, episode, video) {
     meta: {
       id: episodeId,
       type: 'episode',
-      name: videoTitle,
-      series: seriesMeta.meta.name,
+      name: displayTitle,
+      series: showName,
       seriesId: seriesMeta.meta.id,
       season,
       episode,
@@ -206,12 +215,38 @@ function buildEpisodeMeta(seriesMeta, episodeId, season, episode, video) {
         featured: true,
         videoSize: 1080,
       },
-      title: videoTitle,
+      title: displayTitle,
     },
   };
 }
 
 const MAX_SHOWS = 150;
+async function pickRandomEpisodeFromShows(userShows) {
+  if (!userShows || userShows.length === 0) return null;
+  const shuffled = [...userShows].sort(() => Math.random() - 0.5);
+  for (const show of shuffled) {
+    const meta = await fetchMeta('series', show.id);
+    if (!meta || !meta.meta || !meta.meta.videos || meta.meta.videos.length === 0) {
+      continue;
+    }
+    const normalizedVideos = meta.meta.videos.map((video) =>
+      normalizeEpisode(meta, video),
+    );
+    const streamable = normalizedVideos.filter(
+      (item) => item.season > 0 && item.episode > 0,
+    );
+    const pool = streamable.length > 0 ? streamable : normalizedVideos;
+    const normalized = pool[Math.floor(Math.random() * pool.length)];
+    return {
+      seriesMeta: meta,
+      episodeId: normalized.id,
+      season: normalized.season,
+      episode: normalized.episode,
+      video: normalized.video,
+    };
+  }
+  return null;
+}
 
 async function addShow(userId, imdbId) {
   let actualImdbId = imdbId;
@@ -292,11 +327,6 @@ const manifest = {
       name: 'Find Random Episode',
       extra: [{ name: 'search', isRequired: false }],
     },
-    {
-      type: 'series',
-      id: 'add-shows',
-      name: 'Add Shows',
-    },
   ],
   idPrefixes: ['tt', 'random-episode-action', 'random-episode-show:'],
 };
@@ -359,32 +389,17 @@ async function handleMeta(type, id, userId) {
 
   if (id === 'random-episode-action') {
     const userShows = await getUserShows(userId);
-    if (userShows.length === 0) {
+    const payload = await pickRandomEpisodeFromShows(userShows);
+    if (!payload) {
       return { meta: null };
     }
-
-    const randomShow = userShows[Math.floor(Math.random() * userShows.length)];
-    const meta = await fetchMeta('series', randomShow.id);
-
-    if (meta && meta.meta && meta.meta.videos && meta.meta.videos.length > 0) {
-      const normalizedVideos = meta.meta.videos.map((video) =>
-        normalizeEpisode(meta, video),
-      );
-      const streamable = normalizedVideos.filter(
-        (item) => item.season > 0 && item.episode > 0,
-      );
-      const pool = streamable.length > 0 ? streamable : normalizedVideos;
-      const normalized = pool[Math.floor(Math.random() * pool.length)];
-      return buildEpisodeMeta(
-        meta,
-        normalized.id,
-        normalized.season,
-        normalized.episode,
-        normalized.video,
-      );
-    }
-
-    return { meta: null };
+    return buildEpisodeMeta(
+      payload.seriesMeta,
+      payload.episodeId,
+      payload.season,
+      payload.episode,
+      payload.video,
+    );
   }
 
   if (id.startsWith('random-episode-show:')) {

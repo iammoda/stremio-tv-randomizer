@@ -113,7 +113,6 @@ The install page generates a key and builds the `manifest.json?user=KEY` URL so 
 
 - **Node.js** - Runtime environment
 - **Express.js** - Web server framework
-- **Stremio Addon SDK** - Stremio addon protocol implementation
 - **TVmaze API** - TV show search
 - **Cinemeta** - TV show metadata and episode information
 
@@ -162,4 +161,3 @@ MIT License - Feel free to modify and distribute.
 - [Stremio](https://www.strem.io/) - For the addon platform
 - [TVmaze](https://www.tvmaze.com/) - For show data
 - [Cinemeta](https://cinemeta.strem.io/) - For metadata
-- [Stremio Addon SDK](https://github.com/Stremio/stremio-addon-sdk) - For addon development tools
