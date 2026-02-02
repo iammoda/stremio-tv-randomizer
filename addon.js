@@ -298,7 +298,7 @@ const manifest = {
       name: 'Add Shows',
     },
   ],
-  idPrefixes: ['tt', 'random-episode-action'],
+  idPrefixes: ['tt', 'random-episode-action', 'random-episode-show:'],
 };
 
 async function handleCatalog(type, id, extra, userId) {
@@ -310,7 +310,7 @@ async function handleCatalog(type, id, extra, userId) {
       items.push({
         id: 'random-episode-action',
         type: 'series',
-        name: '🎲 Random Episode',
+        name: '🎲 Random All Shows',
         poster: 'https://i.redd.it/e2wriei591m51.jpg',
         description:
           'Click to play a random episode from any show in your list',
@@ -323,9 +323,9 @@ async function handleCatalog(type, id, extra, userId) {
 
     items.push(
       ...userShows.map((show) => ({
-        id: show.id,
+        id: `random-episode-show:${show.id}`,
         type: 'series',
-        name: show.name,
+        name: `🎲 Random ${show.name}`,
         poster: show.poster,
         background: show.background,
       })),
@@ -366,6 +366,33 @@ async function handleMeta(type, id, userId) {
     const randomShow = userShows[Math.floor(Math.random() * userShows.length)];
     const meta = await fetchMeta('series', randomShow.id);
 
+    if (meta && meta.meta && meta.meta.videos && meta.meta.videos.length > 0) {
+      const normalizedVideos = meta.meta.videos.map((video) =>
+        normalizeEpisode(meta, video),
+      );
+      const streamable = normalizedVideos.filter(
+        (item) => item.season > 0 && item.episode > 0,
+      );
+      const pool = streamable.length > 0 ? streamable : normalizedVideos;
+      const normalized = pool[Math.floor(Math.random() * pool.length)];
+      return buildEpisodeMeta(
+        meta,
+        normalized.id,
+        normalized.season,
+        normalized.episode,
+        normalized.video,
+      );
+    }
+
+    return { meta: null };
+  }
+
+  if (id.startsWith('random-episode-show:')) {
+    const showId = id.replace('random-episode-show:', '').trim();
+    if (!showId) {
+      return { meta: null };
+    }
+    const meta = await fetchMeta('series', showId);
     if (meta && meta.meta && meta.meta.videos && meta.meta.videos.length > 0) {
       const normalizedVideos = meta.meta.videos.map((video) =>
         normalizeEpisode(meta, video),
