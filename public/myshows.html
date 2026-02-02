@@ -51,13 +51,24 @@
         <h2 class="section-title">Add Show</h2>
         <div class="search-container">
           <div class="search-box">
-            <input
-              type="text"
-              id="searchInput"
-              placeholder="Search for a TV show..."
-              oninput="handleSearch(this.value)"
-              onfocus="showSearchResults()"
-            />
+            <div class="search-input-wrapper">
+              <input
+                type="text"
+                id="searchInput"
+                placeholder="Search for a TV show..."
+                oninput="handleSearch(this.value)"
+                onfocus="showSearchResults()"
+              />
+              <button
+                type="button"
+                class="clear-btn"
+                id="searchClear"
+                aria-label="Clear search"
+                onclick="clearSearchInput()"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
             <button class="search-btn" onclick="searchShows()">Search</button>
           </div>
           <div id="searchResults" class="search-results"></div>
@@ -80,6 +91,15 @@
             placeholder="Search in my shows..."
             oninput="filterMyShows(this.value)"
           />
+          <button
+            type="button"
+            class="clear-btn"
+            id="myShowsClear"
+            aria-label="Clear my shows search"
+            onclick="clearMyShowsSearch()"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
 
         <div id="showsList" class="shows-grid"></div>
@@ -128,8 +148,8 @@
           <div class="help-item">
             <span class="help-number">2</span>
             <p>
-              Find <strong>"Find Random Episode - Series"</strong> in Stremio
-              Homepage
+              Scroll down within the Stremio Homepage and find
+              <strong>"Find Random Episode - Series"</strong>
             </p>
           </div>
           <div class="help-item">
@@ -231,6 +251,7 @@
 
       function handleSearch(value) {
         clearTimeout(searchTimeout);
+        toggleClearButton('searchInput', 'searchClear');
         if (value.length < 2) {
           document.getElementById('searchResults').style.display = 'none';
           return;
@@ -321,6 +342,7 @@
       }
 
       function filterMyShows(query) {
+        toggleClearButton('myShowsSearch', 'myShowsClear');
         query = query.toLowerCase().trim();
 
         if (query === '') {
@@ -430,6 +452,31 @@
         }
       }
 
+      function toggleClearButton(inputId, buttonId) {
+        const input = document.getElementById(inputId);
+        const button = document.getElementById(buttonId);
+        if (!input || !button) return;
+        button.style.display = input.value ? 'inline-flex' : 'none';
+      }
+
+      function clearSearchInput() {
+        const input = document.getElementById('searchInput');
+        if (!input) return;
+        input.value = '';
+        document.getElementById('searchResults').style.display = 'none';
+        toggleClearButton('searchInput', 'searchClear');
+        input.focus();
+      }
+
+      function clearMyShowsSearch() {
+        const input = document.getElementById('myShowsSearch');
+        if (!input) return;
+        input.value = '';
+        filterMyShows('');
+        toggleClearButton('myShowsSearch', 'myShowsClear');
+        input.focus();
+      }
+
       document.addEventListener('click', (e) => {
         if (!e.target.closest('.search-container')) {
           document.getElementById('searchResults').style.display = 'none';
@@ -463,6 +510,8 @@
       initTheme();
       initUserKey();
       loadShows();
+      toggleClearButton('searchInput', 'searchClear');
+      toggleClearButton('myShowsSearch', 'myShowsClear');
     </script>
   </body>
 </html>
