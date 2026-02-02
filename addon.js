@@ -179,8 +179,8 @@ function buildEpisodeMeta(seriesMeta, episodeId, season, episode, video) {
   const label = formatEpisodeLabel(season, episode);
   const showName = seriesMeta.meta.name;
   const displayTitle = episodeTitle
-    ? `${showName} — ${label} ${episodeTitle}`
-    : `${showName} — ${label}`;
+    ? `${showName} — ${episodeTitle} (${label})`
+    : `${showName} — (${label})`;
   const releaseInfo =
     (video && video.released ? video.released.substring(0, 4) : '') ||
     seriesMeta.meta.releaseInfo ||
