@@ -38,7 +38,7 @@ router.get('/catalog/:type/:id.json', asyncHandler(async (req, res) => {
       items.push({
         id: 'random-episode-action',
         type: 'series',
-        name: 'Random All Shows',
+        name: '🎲 Random All Shows',
         poster: 'https://i.redd.it/e2wriei591m51.jpg',
         description:
           'Click to play a random episode from any show in your list',
@@ -53,7 +53,7 @@ router.get('/catalog/:type/:id.json', asyncHandler(async (req, res) => {
       ...userShows.map((show) => ({
         id: `random-episode-show:${show.id}`,
         type: 'series',
-        name: `Random ${show.name}`,
+        name: `🎲 Random ${show.name}`,
         poster: show.poster,
         background: show.background,
       })),
