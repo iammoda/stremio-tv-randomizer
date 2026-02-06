@@ -9,13 +9,101 @@
   <body>
     <div class="container">
       <header class="header">
-        <h1 class="title">🎲 TV Show Randomizer</h1>
+        <h1 class="title">TV Show Randomizer</h1>
         <button
           class="theme-toggle"
           onclick="toggleTheme()"
           title="Toggle dark/light mode"
         >
-          <span class="theme-icon">🌙</span>
+          <svg
+            class="theme-icon"
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="currentColor"
+          >
+            <!-- Moon icon (shown in dark mode) -->
+            <path
+              class="icon-moon"
+              d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+            />
+            <!-- Sun icon (shown in light mode) -->
+            <g class="icon-sun" style="display: none">
+              <circle cx="12" cy="12" r="5" />
+              <line
+                x1="12"
+                y1="1"
+                x2="12"
+                y2="3"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <line
+                x1="12"
+                y1="21"
+                x2="12"
+                y2="23"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <line
+                x1="4.22"
+                y1="4.22"
+                x2="5.64"
+                y2="5.64"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <line
+                x1="18.36"
+                y1="18.36"
+                x2="19.78"
+                y2="19.78"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <line
+                x1="1"
+                y1="12"
+                x2="3"
+                y2="12"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <line
+                x1="21"
+                y1="12"
+                x2="23"
+                y2="12"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <line
+                x1="4.22"
+                y1="19.78"
+                x2="5.64"
+                y2="18.36"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <line
+                x1="18.36"
+                y1="5.64"
+                x2="19.78"
+                y2="4.22"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+            </g>
+          </svg>
         </button>
       </header>
 
@@ -66,7 +154,7 @@
                 aria-label="Clear search"
                 onclick="clearSearchInput()"
               >
-                <span aria-hidden="true">×</span>
+                <span aria-hidden="true">x</span>
               </button>
             </div>
             <button class="search-btn" onclick="searchShows()">Search</button>
@@ -98,7 +186,7 @@
             aria-label="Clear my shows search"
             onclick="clearMyShowsSearch()"
           >
-            <span aria-hidden="true">×</span>
+            <span aria-hidden="true">x</span>
           </button>
         </div>
 
@@ -110,14 +198,24 @@
             class="btn btn-pagination"
             onclick="showMore()"
           >
-            <span class="btn-arrow">↓</span> Show More
+            <span class="btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M12 16l-6-6h12z" />
+              </svg>
+            </span>
+            Show More
           </button>
           <button
             id="showAllBtn"
             class="btn btn-pagination"
             onclick="showAll()"
           >
-            Show All <span class="btn-arrow">↘</span>
+            Show All
+            <span class="btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M10 6l6 6-6 6" />
+              </svg>
+            </span>
           </button>
         </div>
 
@@ -133,7 +231,11 @@
 
       <section class="actions-section requires-key">
         <button class="btn btn-danger" onclick="clearAll()">
-          <span class="btn-icon">🗑️</span>
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </span>
           Clear All Shows
         </button>
       </section>
@@ -147,20 +249,21 @@
           </div>
           <div class="help-item">
             <span class="help-number">2</span>
-            <p>
-              Scroll down within the Stremio Homepage and find
-              <strong>"Find Random Episode - Series"</strong>
-            </p>
+            <p>Click the gear icon on a show to configure season filters</p>
           </div>
           <div class="help-item">
             <span class="help-number">3</span>
             <p>
-              Click the angry squirrel to play a random episode from your list
+              In Stremio, find <strong>"Find Random Episode"</strong> in your
+              catalog
             </p>
           </div>
           <div class="help-item">
             <span class="help-number">4</span>
-            <p>Or click a show icon to play a random episode from that show</p>
+            <p>
+              Click "Random All Shows" or a specific show to play a random
+              episode
+            </p>
           </div>
         </div>
       </section>
@@ -168,6 +271,34 @@
       <footer class="footer">
         <p>TV Show Randomizer for Stremio</p>
       </footer>
+    </div>
+
+    <!-- Season Settings Modal -->
+    <div id="seasonModal" class="modal" onclick="closeSeasonModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h3 id="seasonModalTitle">Season Settings</h3>
+          <button class="modal-close" onclick="closeSeasonModal()">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-hint">
+            Select which seasons to include in random selection. If none are
+            selected, all seasons will be used.
+          </p>
+          <div id="seasonCheckboxes" class="season-checkboxes"></div>
+          <div id="seasonLoading" class="loading">Loading seasons...</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeSeasonModal()">
+            Cancel
+          </button>
+          <button class="btn btn-primary" onclick="saveSeasonSettings()">
+            Save
+          </button>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -179,6 +310,9 @@
       let currentLimit = 4;
       const SHOWS_PER_PAGE = 4;
       let userKey = '';
+      let currentSeasonShow = null;
+      let availableSeasons = [];
+      let selectedSeasons = [];
 
       function initTheme() {
         const savedTheme = localStorage.getItem('tvRandomizerTheme');
@@ -199,8 +333,15 @@
 
       function applyTheme() {
         document.body.classList.toggle('light-mode', !isDarkMode);
-        const icon = document.querySelector('.theme-icon');
-        icon.textContent = isDarkMode ? '🌙' : '☀️';
+        const moonIcon = document.querySelector('.icon-moon');
+        const sunIcon = document.querySelector('.icon-sun');
+        if (isDarkMode) {
+          moonIcon.style.display = 'block';
+          sunIcon.style.display = 'none';
+        } else {
+          moonIcon.style.display = 'none';
+          sunIcon.style.display = 'block';
+        }
       }
 
       async function loadShows() {
@@ -406,9 +547,18 @@
                 <div class="show-card">
                     <div class="show-image-wrapper">
                         <img src="${show.poster}" alt="${show.name}" class="show-poster" onerror="this.src='https://via.placeholder.com/100x150?text=?'">
-                        <button class="btn-remove" onclick="removeShow('${show.id}')" title="Remove show">
-                            <span>×</span>
-                        </button>
+                        <div class="show-actions">
+                          <button class="btn-settings" onclick="openSeasonSettings('${show.id}', '${escapeJs(show.name)}')" title="Season settings">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                              <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                            </svg>
+                          </button>
+                          <button class="btn-remove" onclick="removeShow('${show.id}')" title="Remove show">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                          </button>
+                        </div>
                     </div>
                     <div class="show-info">
                         <h3 class="show-name">${show.name}</h3>
@@ -432,6 +582,108 @@
         } else {
           paginationControls.style.display = 'none';
         }
+      }
+
+      // Season Settings Modal
+      async function openSeasonSettings(showId, showName) {
+        currentSeasonShow = showId;
+        document.getElementById('seasonModalTitle').textContent =
+          `${showName} - Season Settings`;
+        document.getElementById('seasonModal').classList.add('active');
+        document.getElementById('seasonCheckboxes').innerHTML = '';
+        document.getElementById('seasonLoading').style.display = 'block';
+
+        try {
+          // Fetch available seasons and current settings in parallel
+          const [seasonsRes, settingsRes] = await Promise.all([
+            fetch(apiUrl(`/shows/${showId}/seasons`)),
+            fetch(apiUrl(`/shows/${showId}/settings`)),
+          ]);
+
+          const seasonsData = await seasonsRes.json();
+          const settingsData = await settingsRes.json();
+
+          availableSeasons = seasonsData.seasons || [];
+          const episodeCounts = seasonsData.episodeCounts || {};
+          selectedSeasons = settingsData.enabledSeasons || [];
+
+          document.getElementById('seasonLoading').style.display = 'none';
+
+          if (availableSeasons.length === 0) {
+            document.getElementById('seasonCheckboxes').innerHTML =
+              '<p class="no-seasons">No seasons found for this show.</p>';
+            return;
+          }
+
+          document.getElementById('seasonCheckboxes').innerHTML =
+            availableSeasons
+              .map((season) => {
+                const isChecked =
+                  selectedSeasons.length === 0 ||
+                  selectedSeasons.includes(season);
+                const epCount = episodeCounts[season] || 0;
+                return `
+              <label class="season-checkbox">
+                <input type="checkbox" value="${season}" ${isChecked ? 'checked' : ''} onchange="updateSeasonSelection()">
+                <span class="season-label">Season ${season}</span>
+                <span class="episode-count">${epCount} episode${epCount !== 1 ? 's' : ''}</span>
+              </label>
+            `;
+              })
+              .join('');
+        } catch (e) {
+          console.error('Failed to load season settings:', e);
+          document.getElementById('seasonLoading').style.display = 'none';
+          document.getElementById('seasonCheckboxes').innerHTML =
+            '<p class="error">Failed to load seasons. Please try again.</p>';
+        }
+      }
+
+      function updateSeasonSelection() {
+        const checkboxes = document.querySelectorAll(
+          '#seasonCheckboxes input[type="checkbox"]',
+        );
+        selectedSeasons = Array.from(checkboxes)
+          .filter((cb) => cb.checked)
+          .map((cb) => parseInt(cb.value, 10));
+      }
+
+      async function saveSeasonSettings() {
+        if (!currentSeasonShow) return;
+
+        // If all seasons are selected, save as empty array (means "all")
+        const seasonsToSave =
+          selectedSeasons.length === availableSeasons.length
+            ? []
+            : selectedSeasons;
+
+        try {
+          const response = await fetch(
+            apiUrl(`/shows/${currentSeasonShow}/settings`),
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ enabledSeasons: seasonsToSave }),
+            },
+          );
+
+          if (response.ok) {
+            showToast('Season settings saved');
+            closeSeasonModal();
+          } else {
+            showToast('Failed to save settings');
+          }
+        } catch (e) {
+          console.error('Failed to save season settings:', e);
+          showToast('Failed to save settings');
+        }
+      }
+
+      function closeSeasonModal(event) {
+        if (event && event.target !== document.getElementById('seasonModal'))
+          return;
+        document.getElementById('seasonModal').classList.remove('active');
+        currentSeasonShow = null;
       }
 
       function showToast(message) {
@@ -480,6 +732,13 @@
       document.addEventListener('click', (e) => {
         if (!e.target.closest('.search-container')) {
           document.getElementById('searchResults').style.display = 'none';
+        }
+      });
+
+      // Close modal on Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeSeasonModal();
         }
       });
 
