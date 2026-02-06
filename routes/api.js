@@ -10,6 +10,7 @@ const {
   getDb,
   getShowSettings,
   updateShowSettings,
+  deleteShowSettings,
 } = require('../services/db');
 const { fetchMeta } = require('../services/cinemeta');
 const { searchShows, getTvmazeShow } = require('../services/tvmaze');
@@ -131,6 +132,7 @@ router.delete('/shows/:imdbId',
       return res.status(400).json({ success: false });
     }
     await deleteShow(userId, req.params.imdbId);
+    await deleteShowSettings(userId, req.params.imdbId);
     const shows = await getUserShows(userId);
     res.json({ success: true, shows });
   })
