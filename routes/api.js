@@ -1,5 +1,5 @@
 const express = require('express');
-const { MAX_SHOWS, HISTORY_LIMIT } = require('../config');
+const { MAX_SHOWS } = require('../config');
 const {
   getUserId,
   getUserShows,
@@ -8,10 +8,6 @@ const {
   insertShow,
   deleteShow,
   getDb,
-  recordWatch,
-  getWatchHistory,
-  deleteWatchEntry,
-  clearWatchHistory,
   getShowSettings,
   updateShowSettings,
 } = require('../services/db');
@@ -27,8 +23,6 @@ const {
   validateImdbIdBody,
   validateSearchQuery,
   validateSeasonSettings,
-  validateEpisodeId,
-  validateHistoryEntry,
 } = require('../middleware/validator');
 
 const router = express.Router();
@@ -201,80 +195,6 @@ router.put('/shows/:imdbId/settings',
     
     await updateShowSettings(userId, imdbId, { enabledSeasons });
     res.json({ success: true, enabledSeasons });
-  })
-);
-
-// ===================
-// WATCH HISTORY
-// ===================
-
-/**
- * Get user's watch history
- */
-router.get('/history',
-  validateUserId,
-  handleValidationErrors,
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.status(400).json({ history: [] });
-    }
-    const history = await getWatchHistory(userId, HISTORY_LIMIT);
-    res.json({ history });
-  })
-);
-
-/**
- * Record an episode as watched
- */
-router.post('/history',
-  validateUserId,
-  validateHistoryEntry,
-  handleValidationErrors,
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.status(400).json({ success: false, error: 'Missing user key' });
-    }
-    
-    const { showId, episodeId, season, episode, showName, episodeName, poster } = req.body;
-    await recordWatch(userId, { showId, episodeId, season, episode, showName, episodeName, poster });
-    res.json({ success: true });
-  })
-);
-
-/**
- * Delete a specific history entry
- */
-router.delete('/history/:episodeId',
-  validateUserId,
-  handleValidationErrors,
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.status(400).json({ success: false });
-    }
-    
-    // Decode the episode ID (it may be URL encoded)
-    const episodeId = decodeURIComponent(req.params.episodeId);
-    await deleteWatchEntry(userId, episodeId);
-    res.json({ success: true });
-  })
-);
-
-/**
- * Clear all watch history
- */
-router.delete('/history',
-  validateUserId,
-  handleValidationErrors,
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.status(400).json({ success: false });
-    }
-    await clearWatchHistory(userId);
-    res.json({ success: true });
   })
 );
 

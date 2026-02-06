@@ -38,6 +38,7 @@ if (require.main === module) {
     console.log(`Settings page: http://localhost:${PORT}/myshows`);
     console.log(`Install in Stremio: http://localhost:${PORT}/`);
   });
+
 }
 
 module.exports = app;

@@ -8,8 +8,6 @@ const CINEMETA_URL = 'https://v3-cinemeta.strem.io';
 const TVMAZE_URL = 'https://api.tvmaze.com';
 
 const MAX_SHOWS = 150;
-const HISTORY_RECENCY_DAYS = 7;
-const HISTORY_LIMIT = 50;
 
 const manifest = {
   id: 'org.tvrandomizer.addon',
@@ -49,7 +47,5 @@ module.exports = {
   CINEMETA_URL,
   TVMAZE_URL,
   MAX_SHOWS,
-  HISTORY_RECENCY_DAYS,
-  HISTORY_LIMIT,
   manifest,
 };

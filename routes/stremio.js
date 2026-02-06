@@ -1,6 +1,6 @@
 const express = require('express');
 const { manifest } = require('../config');
-const { getUserId, getUserShows, hasShow, recordWatch } = require('../services/db');
+const { getUserId, getUserShows, hasShow } = require('../services/db');
 const { fetchMeta } = require('../services/cinemeta');
 const { pickSmartRandomEpisode } = require('../services/randomizer');
 const { resolveEpisodeDescription } = require('../services/history');
@@ -73,7 +73,7 @@ router.get('/catalog/:type/:id.json', asyncHandler(async (req, res) => {
  * 1. Pick a random episode
  * 2. Return metadata with the CANONICAL episode ID (e.g., tt0944947:1:5)
  * 3. This ensures subsequent requests use the stable episode ID
- * 4. Record the watch in history
+ * 4. Return metadata with the canonical episode ID
  */
 router.get('/meta/:type/:id.json', asyncHandler(async (req, res) => {
   const { type, id } = req.params;
@@ -124,17 +124,6 @@ router.get('/meta/:type/:id.json', asyncHandler(async (req, res) => {
       payload.episode,
     );
 
-    // Record this watch in history
-    await recordWatch(userId, {
-      showId: payload.show.id,
-      episodeId: payload.episodeId,
-      season: payload.season,
-      episode: payload.episode,
-      showName: payload.seriesMeta.meta.name,
-      episodeName: payload.video?.name || payload.video?.title || '',
-      poster: payload.seriesMeta.meta.poster,
-    });
-
     // KEY FIX: Return the canonical episode ID, not 'random-episode-action'
     // This ensures Stremio caches the correct metadata
     return res.json(buildEpisodeMeta(
@@ -167,17 +156,6 @@ router.get('/meta/:type/:id.json', asyncHandler(async (req, res) => {
       payload.season,
       payload.episode,
     );
-
-    // Record this watch in history
-    await recordWatch(userId, {
-      showId: payload.show.id,
-      episodeId: payload.episodeId,
-      season: payload.season,
-      episode: payload.episode,
-      showName: payload.seriesMeta.meta.name,
-      episodeName: payload.video?.name || payload.video?.title || '',
-      poster: payload.seriesMeta.meta.poster,
-    });
 
     // KEY FIX: Return the canonical episode ID
     return res.json(buildEpisodeMeta(

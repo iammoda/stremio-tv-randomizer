@@ -1,5 +1,5 @@
 const { MongoClient } = require('mongodb');
-const { MONGODB_URI, MONGODB_DB, HISTORY_RECENCY_DAYS } = require('../config');
+const { MONGODB_URI, MONGODB_DB } = require('../config');
 
 let mongoClient;
 let mongoDb;
@@ -124,107 +124,6 @@ async function deleteShow(userId, showId) {
 }
 
 // ===================
-// WATCH HISTORY OPERATIONS
-// ===================
-
-/**
- * Record an episode as watched
- */
-async function recordWatch(userId, episodeData) {
-  if (!userId || !episodeData) return;
-  const db = await getDb();
-  
-  const { showId, episodeId, season, episode, showName, episodeName, poster } = episodeData;
-  
-  await db.collection('watchHistory').updateOne(
-    { userId, episodeId },
-    {
-      $set: {
-        userId,
-        showId,
-        episodeId,
-        season,
-        episode,
-        showName: showName || '',
-        episodeName: episodeName || '',
-        poster: poster || '',
-        watchedAt: new Date(),
-      },
-    },
-    { upsert: true }
-  );
-}
-
-/**
- * Get user's watch history
- */
-async function getWatchHistory(userId, limit = 50) {
-  if (!userId) return [];
-  const db = await getDb();
-  return db
-    .collection('watchHistory')
-    .find({ userId })
-    .sort({ watchedAt: -1 })
-    .limit(limit)
-    .toArray();
-}
-
-/**
- * Get recent watch history for a specific show
- */
-async function getRecentHistoryForShow(userId, showId, days = HISTORY_RECENCY_DAYS) {
-  if (!userId) return [];
-  const db = await getDb();
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  
-  return db
-    .collection('watchHistory')
-    .find({
-      userId,
-      showId,
-      watchedAt: { $gte: cutoff },
-    })
-    .toArray();
-}
-
-/**
- * Get all recent watch history for a user
- */
-async function getRecentHistory(userId, days = HISTORY_RECENCY_DAYS) {
-  if (!userId) return [];
-  const db = await getDb();
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  
-  return db
-    .collection('watchHistory')
-    .find({
-      userId,
-      watchedAt: { $gte: cutoff },
-    })
-    .toArray();
-}
-
-/**
- * Delete a specific watch history entry
- */
-async function deleteWatchEntry(userId, episodeId) {
-  if (!userId) return;
-  const db = await getDb();
-  await db.collection('watchHistory').deleteOne({ userId, episodeId });
-}
-
-/**
- * Clear all watch history for a user
- */
-async function clearWatchHistory(userId) {
-  if (!userId) return;
-  const db = await getDb();
-  await db.collection('watchHistory').deleteMany({ userId });
-}
-
-// ===================
 // SHOW SETTINGS OPERATIONS
 // ===================
 
@@ -288,13 +187,6 @@ module.exports = {
   hasShow,
   insertShow,
   deleteShow,
-  // Watch history
-  recordWatch,
-  getWatchHistory,
-  getRecentHistoryForShow,
-  getRecentHistory,
-  deleteWatchEntry,
-  clearWatchHistory,
   // Show settings
   getShowSettings,
   updateShowSettings,

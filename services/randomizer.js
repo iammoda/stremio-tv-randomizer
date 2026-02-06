@@ -1,6 +1,5 @@
-const { HISTORY_RECENCY_DAYS } = require('../config');
 const { fetchMeta } = require('./cinemeta');
-const { getShowSettings, getRecentHistoryForShow, getRecentHistory } = require('./db');
+const { getShowSettings } = require('./db');
 const { normalizeEpisode } = require('../utils/episode');
 
 /**
@@ -10,9 +9,8 @@ const { normalizeEpisode } = require('../utils/episode');
  * 1. Shuffle shows to randomize selection
  * 2. For each show, get available episodes
  * 3. Filter by enabled seasons (per-show settings)
- * 4. Categorize episodes: unwatched vs recently watched (7 days)
- * 5. Prefer unwatched episodes, fall back to recently watched
- * 6. Return first successful pick
+ * 4. Pick a random episode from the filtered list
+ * 5. Return first successful pick
  * 
  * @param {string} userId - User ID
  * @param {Array} userShows - List of user's shows
@@ -41,7 +39,7 @@ async function pickSmartRandomEpisode(userId, userShows, targetShowId = null) {
 }
 
 /**
- * Pick a random episode from a specific show, respecting settings and history
+ * Pick a random episode from a specific show, respecting settings
  */
 async function pickEpisodeFromShow(userId, show) {
   // Fetch show metadata
@@ -81,22 +79,8 @@ async function pickEpisodeFromShow(userId, show) {
     }
   }
 
-  // Get recent watch history for this show
-  const recentHistory = await getRecentHistoryForShow(
-    userId,
-    show.id,
-    HISTORY_RECENCY_DAYS,
-  );
-  const recentEpisodeIds = new Set(recentHistory.map((h) => h.episodeId));
-
-  // Categorize episodes
-  const unwatched = filteredEpisodes.filter(
-    (item) => !recentEpisodeIds.has(item.id),
-  );
-
-  // Pick from unwatched if available, otherwise from all filtered
-  const pickPool = unwatched.length > 0 ? unwatched : filteredEpisodes;
-  const picked = pickPool[Math.floor(Math.random() * pickPool.length)];
+  const picked =
+    filteredEpisodes[Math.floor(Math.random() * filteredEpisodes.length)];
 
   return {
     seriesMeta: meta,
@@ -105,7 +89,6 @@ async function pickEpisodeFromShow(userId, show) {
     episode: picked.episode,
     video: picked.video,
     show,
-    wasUnwatched: unwatched.length > 0 && unwatched.includes(picked),
   };
 }
 

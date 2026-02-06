@@ -81,49 +81,6 @@ const validateSeasonSettings = [
     .withMessage('Season numbers must be positive integers'),
 ];
 
-/**
- * Validate episode ID
- * Format: tt1234567:1:5 (IMDB ID:season:episode)
- */
-const validateEpisodeId = [
-  param('episodeId')
-    .isString()
-    .trim()
-    .matches(/^tt\d+:\d+:\d+$/)
-    .withMessage('Invalid episode ID format'),
-];
-
-/**
- * Validate history entry
- */
-const validateHistoryEntry = [
-  body('showId')
-    .isString()
-    .trim()
-    .matches(/^tt\d+$/)
-    .withMessage('Invalid show ID format'),
-  body('episodeId')
-    .isString()
-    .trim()
-    .matches(/^tt\d+:\d+:\d+$/)
-    .withMessage('Invalid episode ID format'),
-  body('season')
-    .isInt({ min: 0 })
-    .withMessage('Season must be a non-negative integer'),
-  body('episode')
-    .isInt({ min: 0 })
-    .withMessage('Episode must be a non-negative integer'),
-  body('showName')
-    .optional()
-    .isString()
-    .trim()
-    .isLength({ max: 500 }),
-  body('episodeName')
-    .optional()
-    .isString()
-    .trim()
-    .isLength({ max: 500 }),
-];
 
 module.exports = {
   handleValidationErrors,
@@ -132,6 +89,4 @@ module.exports = {
   validateImdbIdBody,
   validateSearchQuery,
   validateSeasonSettings,
-  validateEpisodeId,
-  validateHistoryEntry,
 };
