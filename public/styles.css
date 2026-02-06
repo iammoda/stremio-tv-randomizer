@@ -504,7 +504,7 @@ section {
 /* Pagination Controls */
 .pagination-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 16px;
   margin-top: 20px;
   width: 100%;
@@ -912,7 +912,7 @@ section {
   }
 
   .pagination-controls {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
 
   .btn-pagination {
