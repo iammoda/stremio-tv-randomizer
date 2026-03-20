@@ -5,7 +5,8 @@
   "main": "addon.js",
   "scripts": {
     "start": "node addon.js",
-    "dev": "node addon.js"
+    "dev": "node addon.js",
+    "test": "node --test"
   },
   "dependencies": {
     "cors": "^2.8.5",

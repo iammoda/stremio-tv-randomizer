@@ -14,7 +14,10 @@ const {
 } = require('../services/db');
 const { fetchMeta } = require('../services/cinemeta');
 const { searchShows, getTvmazeShow } = require('../services/tvmaze');
-const { getAvailableSeasons, getSeasonEpisodeCounts } = require('../services/randomizer');
+const {
+  refreshShowEpisodeStats,
+  getShowEpisodeStatsSnapshot,
+} = require('../services/randomizer');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { apiLimiter, searchLimiter } = require('../middleware/rateLimiter');
 const {
@@ -112,6 +115,9 @@ router.post('/shows',
         poster: meta.meta.poster,
         background: meta.meta.background,
       });
+      refreshShowEpisodeStats(imdbId, { seriesMeta: meta }).catch((error) => {
+        console.error('Failed to build show episode stats:', imdbId, error);
+      });
       return res.json({ success: true });
     }
 
@@ -150,9 +156,11 @@ router.get('/shows/:imdbId/seasons',
   handleValidationErrors,
   asyncHandler(async (req, res) => {
     const { imdbId } = req.params;
-    const seasons = await getAvailableSeasons(imdbId);
-    const episodeCounts = await getSeasonEpisodeCounts(imdbId);
-    res.json({ seasons, episodeCounts });
+    const stats = await getShowEpisodeStatsSnapshot(imdbId);
+    res.json({
+      seasons: stats?.availableSeasons || [],
+      episodeCounts: stats?.seasonCounts || {},
+    });
   })
 );
 

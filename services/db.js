@@ -4,6 +4,7 @@ const { MONGODB_URI, MONGODB_DB } = require('../config');
 let mongoClient;
 let mongoDb;
 let mongoClientPromise;
+let indexesPromise;
 
 /**
  * Extract database name from MongoDB URI
@@ -41,7 +42,25 @@ async function getDb() {
     console.warn('No database name set in MONGODB_URI or MONGODB_DB');
   }
   mongoDb = mongoClient.db(dbName || undefined);
+  await ensureIndexes();
   return mongoDb;
+}
+
+/**
+ * Ensure required MongoDB indexes exist
+ */
+async function ensureIndexes() {
+  if (!mongoDb) return;
+  if (!indexesPromise) {
+    indexesPromise = mongoDb
+      .collection('showEpisodeStats')
+      .createIndex({ showId: 1 }, { unique: true })
+      .catch((error) => {
+        indexesPromise = null;
+        throw error;
+      });
+  }
+  await indexesPromise;
 }
 
 /**
@@ -137,6 +156,34 @@ async function getShowSettings(userId, showId) {
 }
 
 /**
+ * Get settings for multiple shows as a map keyed by showId
+ */
+async function getShowSettingsMap(userId, showIds) {
+  if (!userId || !Array.isArray(showIds) || showIds.length === 0) {
+    return new Map();
+  }
+
+  const db = await getDb();
+  const rows = await db
+    .collection('showSettings')
+    .find({ userId, showId: { $in: showIds } })
+    .project({ _id: 0, showId: 1, enabledSeasons: 1 })
+    .toArray();
+
+  return new Map(
+    rows.map((row) => [
+      row.showId,
+      {
+        showId: row.showId,
+        enabledSeasons: Array.isArray(row.enabledSeasons)
+          ? row.enabledSeasons
+          : [],
+      },
+    ]),
+  );
+}
+
+/**
  * Update settings for a specific show
  */
 async function updateShowSettings(userId, showId, settings) {
@@ -178,9 +225,69 @@ async function getAllShowSettings(userId) {
   return db.collection('showSettings').find({ userId }).toArray();
 }
 
+/**
+ * Get cached episode stats for a show
+ */
+async function getShowEpisodeStats(showId) {
+  if (!showId) return null;
+  const db = await getDb();
+  return db.collection('showEpisodeStats').findOne(
+    { showId },
+    { projection: { _id: 0 } },
+  );
+}
+
+/**
+ * Get cached episode stats for multiple shows as a map keyed by showId
+ */
+async function getShowEpisodeStatsMap(showIds) {
+  if (!Array.isArray(showIds) || showIds.length === 0) {
+    return new Map();
+  }
+
+  const db = await getDb();
+  const rows = await db
+    .collection('showEpisodeStats')
+    .find({ showId: { $in: showIds } })
+    .project({ _id: 0 })
+    .toArray();
+
+  return new Map(rows.map((row) => [row.showId, row]));
+}
+
+/**
+ * Upsert cached episode stats for a show
+ */
+async function upsertShowEpisodeStats(showId, stats) {
+  if (!showId || !stats) return null;
+  const db = await getDb();
+
+  const payload = {
+    showId,
+    seasonCounts: stats.seasonCounts || {},
+    availableSeasons: stats.availableSeasons || [],
+    totalEpisodes: Number.isFinite(stats.totalEpisodes) ? stats.totalEpisodes : 0,
+    updatedAt: stats.updatedAt || new Date(),
+  };
+
+  await db.collection('showEpisodeStats').updateOne(
+    { showId },
+    {
+      $set: payload,
+      $setOnInsert: {
+        createdAt: new Date(),
+      },
+    },
+    { upsert: true },
+  );
+
+  return payload;
+}
+
 module.exports = {
   getDb,
   getUserId,
+  ensureIndexes,
   // Shows
   getUserShows,
   getShowCount,
@@ -189,7 +296,12 @@ module.exports = {
   deleteShow,
   // Show settings
   getShowSettings,
+  getShowSettingsMap,
   updateShowSettings,
   deleteShowSettings,
   getAllShowSettings,
+  // Show episode stats
+  getShowEpisodeStats,
+  getShowEpisodeStatsMap,
+  upsertShowEpisodeStats,
 };
