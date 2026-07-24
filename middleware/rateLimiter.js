@@ -1,12 +1,7 @@
 const rateLimit = require('express-rate-limit');
 
 /**
- * Create a rate limiter with custom options.
- *
- * Uses the default key generator (client IP, with proper IPv6 handling).
- * Keying on the `user` query param would let an attacker reset their bucket
- * by rotating the param; IP-based keys require `trust proxy` to be set
- * (done in addon.js) so req.ip is correct behind Vercel's proxy.
+ * Create a rate limiter with custom options
  */
 function createLimiter(options) {
   return rateLimit({
@@ -18,6 +13,10 @@ function createLimiter(options) {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => {
+      // Use user ID if available, otherwise fall back to IP
+      return req.query.user || req.query.uid || req.ip;
+    },
     skip: (req) => {
       // Skip rate limiting for health checks
       return req.path === '/api/health';
@@ -27,7 +26,7 @@ function createLimiter(options) {
 
 /**
  * Rate limiter for general API endpoints
- * 100 requests per minute per IP
+ * 100 requests per minute per user
  */
 const apiLimiter = createLimiter({
   windowMs: 60 * 1000,
@@ -37,7 +36,7 @@ const apiLimiter = createLimiter({
 
 /**
  * Rate limiter for search endpoint
- * 30 requests per minute per IP (more restrictive due to external API calls)
+ * 30 requests per minute per user (more restrictive due to external API calls)
  */
 const searchLimiter = createLimiter({
   windowMs: 60 * 1000,
@@ -47,12 +46,11 @@ const searchLimiter = createLimiter({
 
 /**
  * Rate limiter for Stremio addon endpoints
- * 300 requests per minute per IP (addon requests are frequent, and playback
- * of any IMDB content now triggers a subtitles request)
+ * 200 requests per minute per user (addon requests are frequent)
  */
 const stremioLimiter = createLimiter({
   windowMs: 60 * 1000,
-  max: 300,
+  max: 200,
   message: 'Too many requests to addon, please try again later',
 });
 

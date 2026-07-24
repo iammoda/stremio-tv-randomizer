@@ -9,17 +9,13 @@ const TVMAZE_URL = 'https://api.tvmaze.com';
 
 const MAX_SHOWS = 150;
 
-// Watched-episode cooldown: episodes the user started watching are excluded
-// from random picks for this many days (per-user configurable, 0 disables).
-const DEFAULT_COOLDOWN_DAYS = 30;
-const MAX_COOLDOWN_DAYS = 90; // must match the watchedEpisodes TTL index
-
 const manifest = {
   id: 'org.tvrandomizer.addon',
-  version: '1.1.0',
+  version: '1.0.0',
   name: 'TV Show Randomizer',
   description: 'Randomly play episodes from your favorite TV shows',
-  // logo is injected per-request in the manifest route (needs an absolute URL)
+  logo: 'https://via.placeholder.com/256x256.png?text=Random+TV',
+  configurable: true,
   behaviorHints: {
     configurable: true,
   },
@@ -31,10 +27,8 @@ const manifest = {
       required: true,
     },
   ],
-  // 'subtitles' is used as a playback-start signal for watched tracking;
-  // the handler always returns an empty list.
-  resources: ['catalog', 'meta', 'stream', 'subtitles'],
-  types: ['series'],
+  resources: ['catalog', 'meta', 'stream'],
+  types: ['series', 'episode'],
   catalogs: [
     {
       type: 'series',
@@ -53,7 +47,5 @@ module.exports = {
   CINEMETA_URL,
   TVMAZE_URL,
   MAX_SHOWS,
-  DEFAULT_COOLDOWN_DAYS,
-  MAX_COOLDOWN_DAYS,
   manifest,
 };

@@ -4,15 +4,13 @@ const {
   getUserId,
   getUserShows,
   getShowCount,
+  hasShow,
   insertShow,
   deleteShow,
-  deleteAllShows,
   getDb,
   getShowSettings,
   updateShowSettings,
   deleteShowSettings,
-  getUserSettings,
-  updateUserSettings,
 } = require('../services/db');
 const { fetchMeta } = require('../services/cinemeta');
 const { searchShows, getTvmazeShow } = require('../services/tvmaze');
@@ -29,7 +27,6 @@ const {
   validateImdbIdBody,
   validateSearchQuery,
   validateSeasonSettings,
-  validateUserSettings,
 } = require('../middleware/validator');
 
 const router = express.Router();
@@ -108,17 +105,16 @@ router.post('/shows',
 
     const meta = await fetchMeta('series', imdbId);
     if (meta && meta.meta) {
-      // The unique {userId, showId} index makes duplicate adds safe,
-      // even under concurrent requests
-      const result = await insertShow(userId, {
+      const exists = await hasShow(userId, imdbId);
+      if (exists) {
+        return res.json({ success: false, exists: true });
+      }
+      await insertShow(userId, {
         id: imdbId,
         name: meta.meta.name,
         poster: meta.meta.poster,
         background: meta.meta.background,
       });
-      if (result.exists) {
-        return res.json({ success: false, exists: true });
-      }
       refreshShowEpisodeStats(imdbId, { seriesMeta: meta }).catch((error) => {
         console.error('Failed to build show episode stats:', imdbId, error);
       });
@@ -126,22 +122,6 @@ router.post('/shows',
     }
 
     res.json({ success: false, error: 'Failed to fetch show metadata' });
-  })
-);
-
-/**
- * Remove all shows from user's list (bulk delete)
- */
-router.delete('/shows',
-  validateUserId,
-  handleValidationErrors,
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.status(400).json({ success: false });
-    }
-    const deleted = await deleteAllShows(userId);
-    res.json({ success: true, deleted, shows: [] });
   })
 );
 
@@ -161,45 +141,6 @@ router.delete('/shows/:imdbId',
     await deleteShowSettings(userId, req.params.imdbId);
     const shows = await getUserShows(userId);
     res.json({ success: true, shows });
-  })
-);
-
-// ===================
-// USER SETTINGS
-// ===================
-
-/**
- * Get user settings (watched-episode cooldown)
- */
-router.get('/settings',
-  validateUserId,
-  handleValidationErrors,
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.status(400).json({ error: 'Missing user key' });
-    }
-    const settings = await getUserSettings(userId);
-    res.json(settings);
-  })
-);
-
-/**
- * Update user settings
- */
-router.put('/settings',
-  validateUserId,
-  validateUserSettings,
-  handleValidationErrors,
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.status(400).json({ error: 'Missing user key' });
-    }
-    const settings = await updateUserSettings(userId, {
-      cooldownDays: req.body.cooldownDays,
-    });
-    res.json({ success: true, ...settings });
   })
 );
 
@@ -233,11 +174,11 @@ router.get('/shows/:imdbId/settings',
   asyncHandler(async (req, res) => {
     const userId = getUserId(req);
     const { imdbId } = req.params;
-
+    
     if (!userId) {
       return res.status(400).json({ error: 'Missing user key' });
     }
-
+    
     const settings = await getShowSettings(userId, imdbId);
     res.json({
       enabledSeasons: settings?.enabledSeasons || [],
@@ -257,11 +198,11 @@ router.put('/shows/:imdbId/settings',
     const userId = getUserId(req);
     const { imdbId } = req.params;
     const { enabledSeasons } = req.body;
-
+    
     if (!userId) {
       return res.status(400).json({ error: 'Missing user key' });
     }
-
+    
     await updateShowSettings(userId, imdbId, { enabledSeasons });
     res.json({ success: true, enabledSeasons });
   })

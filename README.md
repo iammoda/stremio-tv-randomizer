@@ -5,24 +5,21 @@ A Stremio addon that lets you add your favorite TV shows and automatically play 
 ## Features
 
 - **Add TV Shows**: Search and add TV shows to your personal collection
-- **Random Episode Playback**: Click "Random All Shows" (or a specific show) to instantly play a random episode
-- **Fair Weighting**: Every episode across your library has equal odds (shows with more episodes are picked proportionally more often)
-- **Watched Tracking**: Episodes you actually start playing go on a cooldown and won't be re-picked for a configurable number of days (default 30, 0 disables)
-- **Season Filters**: Per-show season selection (e.g., only pick from seasons 2-4)
-- **Catalog Search**: Search your added shows from inside Stremio's Discover page
-- **Multi-Device Sync**: Your show list is stored in MongoDB per user key — the same install URL syncs across devices
+- **Random Episode Playback**: Click "Random Episode" to instantly play a random episode from any show in your list
 - **Auto-Play Support**: Episodes can continue automatically when finished (via Torrentio/GDrive)
+- **Persistent Storage**: Your show list is saved locally and persists between sessions
 - **Dark/Light Mode**: Toggle between dark and light themes
+- **Search & Filter**: Search through your added shows
+- **Pagination**: Shows are displayed in groups of 4 with "Show More" and "Show All" options
 - **150 Show Limit**: Maximum of 150 shows can be added (configurable)
 
 ## Installation
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 14+ 
 - npm or pnpm
-- A MongoDB database (MongoDB Atlas free tier works)
-- Stremio (desktop, web, or mobile)
+- Stremio desktop app (macOS, Windows, or Linux)
 
 ### Setup
 
@@ -32,99 +29,103 @@ A Stremio addon that lets you add your favorite TV shows and automatically play 
    npm install
    ```
 
-3. Copy `.env.example` to `.env` and set `MONGODB_URI`
-
-4. Start the addon server:
+3. Start the addon server:
    ```bash
    npm start
    ```
 
-5. The addon will run at `http://localhost:7001/`
+4. The addon will run at `http://localhost:7001/`
 
-6. In Stremio:
+5. In Stremio:
+   - Go to **Addons**
+   - Click **"Install from URL"**
    - Open `http://localhost:7001/` and copy the generated install URL
-   - Go to **Addons** → **Install from URL** → paste → **Install**
+   - Click **Install**
 
 ### Accessing the Settings Page
 
-Click **Configure** on the addon inside Stremio (or open `http://localhost:7001/myshows?user=YOUR-KEY`).
+Open your browser and navigate to:
+```
+http://localhost:7001/myshows
+```
 
 Here you can:
 - Search for TV shows and add them to your list
-- Remove shows (individually or all at once)
-- Configure per-show season filters (gear icon)
-- Set the watched-episode cooldown (Randomizer Settings)
+- Remove shows from your collection
 - Toggle dark/light mode
+- Search/filter through your added shows
+- Clear all shows
 
 ## Usage
 
-1. **Install**: Open `/` on your deployment and install the generated URL
+1. **Install**: Open `http://localhost:7001/` and install the addon using the generated URL.
+
 2. **Find Random Episode**: In Stremio's **Discover** section, find the "Find Random Episode" catalog
-3. **Play Random Episode**: Click "🎲 Random All Shows" to play a random episode from any show, or "🎲 Random {Show}" for one show
-4. Each click re-rolls a new random episode
+
+3. **Play Random Episode**: Click the "🎲 Random Episode" item at the top of the catalog to play a random episode from any show in your list
+
+4. **Select Specific Show**: Click any show in the catalog to see its episodes and select one manually
 
 ## How It Works
 
-- **Metadata**: TVmaze API for show search, Cinemeta for episode data (cached in-memory + per-show stats cached in MongoDB)
-- **Streaming**: Delegates to your other installed addons (Torrentio, GDrive, etc.) for actual video streams
-- **Storage**: Show list, settings, and watch history are stored in MongoDB per **user key** (the key in your install URL)
-- **Watched detection**: Stremio requests subtitles from the addon when playback of a video actually starts; the addon records that as "watched" and excludes the episode from random picks during the cooldown window. (The addon protocol has no completion events, so "started playing" is the signal.)
-- **Random meta responses** are returned under the canonical episode ID (`tt…:season:episode`) so players and stream addons see a stable, cacheable ID
+- **Metadata**: Uses TVmaze API for show search and Cinemeta for episode information
+- **Streaming**: Delegates to other addons (Torrentio, GDrive, etc.) for actual video streams
+- **Storage**: Show list is stored in MongoDB per **User Key**
+- **CORS**: Enabled for cross-origin requests
 
 ## Project Structure
 
 ```
 stremio-tv-randomizer/
-├── addon.js                 # Express app entry point
-├── api/index.js             # Vercel serverless wrapper
-├── config/index.js          # Env, constants, Stremio manifest
-├── routes/
-│   ├── stremio.js           # manifest / catalog / meta / stream / subtitles
-│   ├── api.js               # REST API for the settings page
-│   └── pages.js             # HTML pages
-├── services/
-│   ├── db.js                # MongoDB access (shows, settings, watch history)
-│   ├── randomizer.js        # Weighted random pick + cooldown exclusion
-│   ├── cinemeta.js          # Cinemeta client (TTL cache)
-│   ├── tvmaze.js            # TVmaze client
-│   └── descriptions.js      # Episode description resolution
-├── middleware/              # Error handling, rate limiting, validation
-├── utils/                   # Episode parsing/meta building, fetch timeout, HTML
-├── public/                  # Install page, settings SPA, static assets
-└── test/                    # node --test unit tests
+├── addon.js           # Main addon server and logic
+├── package.json       # Node.js dependencies
+└── public/
+    ├── index.html     # Install page
+    ├── myshows.html   # Settings web interface
+    └── styles.css     # Styles for settings page
 ```
 
 ## Configuration
 
-- **Port**: `PORT=8080 npm start`
-- **Show limit**: `MAX_SHOWS` in `config/index.js`
-- **Watched cooldown default**: `DEFAULT_COOLDOWN_DAYS` in `config/index.js` (per-user override in the settings page)
+### Changing the Port
+
+```bash
+PORT=8080 npm start
+```
+
+### Changing the Show Limit
+
+Edit `addon.js` and change:
+```javascript
+const MAX_SHOWS = 150;
+```
 
 ## Deployment (Vercel + MongoDB)
 
-1. Create a MongoDB database (MongoDB Atlas recommended)
-2. In Vercel, set the `MONGODB_URI` environment variable
-3. Deploy the repo to Vercel
-4. Open `/` on your Vercel URL to generate the install URL
+1. Create a MongoDB database (MongoDB Atlas recommended).
+2. In Vercel, set the `MONGODB_URI` environment variable.
+3. Deploy the repo to Vercel.
+4. Open `/` on your Vercel URL to generate the install URL.
 
 The install page generates a key and builds the `manifest.json?user=KEY` URL so the same key shares the same show list across devices.
+
+## Technologies Used
+
+- **Node.js** - Runtime environment
+- **Express.js** - Web server framework
+- **TVmaze API** - TV show search
+- **Cinemeta** - TV show metadata and episode information
 
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/manifest.json` | GET | Addon manifest |
-| `/catalog/:type/:id.json` | GET | Catalog of shows (also `/catalog/:type/:id/:extra.json` for search) |
-| `/meta/:type/:id.json` | GET | Show/episode metadata (random pick for action IDs) |
-| `/stream/:type/:id.json` | GET | Streams (always empty; other addons provide streams) |
-| `/subtitles/:type/:id.json` | GET | Playback-start signal for watched tracking (always empty) |
-| `/api/shows` | GET/POST/DELETE | List, add, or clear shows |
-| `/api/shows/:imdbId` | DELETE | Remove one show |
-| `/api/shows/:imdbId/seasons` | GET | Available seasons + episode counts |
-| `/api/shows/:imdbId/settings` | GET/PUT | Per-show season filter |
-| `/api/settings` | GET/PUT | User settings (watched cooldown days) |
+| `/catalog/:type/:id.json` | GET | Catalog of shows |
+| `/meta/:type/:id.json` | GET | Show/episode metadata |
+| `/stream/:type/:id.json` | GET | Stream URLs |
+| `/api/shows` | GET/POST | Manage show list |
 | `/api/search` | GET | Search TV shows |
-| `/api/health` | GET | Health check |
 | `/myshows` | GET | Settings web interface |
 | `/` | GET | Install page |
 
@@ -137,22 +138,19 @@ The install page generates a key and builds the `manifest.json?user=KEY` URL so 
 
 ### Addon not appearing in Stremio
 - Check that the server is running: `curl http://localhost:7001/manifest.json`
+- Verify the correct URL: `http://localhost:7001/manifest.json`
 - Restart Stremio completely (Cmd+Q)
 
 ### Shows not loading
 - Check internet connection (required for TVmaze/Cinemeta APIs)
-- Check `MONGODB_URI` is set and reachable
-
-### Watched episodes still being picked
-- Existing installs pick up the new manifest (with watched tracking) when Stremio refreshes addons; reinstalling from the same URL forces it immediately (your list is tied to the key, nothing is lost)
-- If every episode of a show is on cooldown, the addon allows repeats rather than failing
+- Verify TVmaze/Cinemeta APIs are accessible
 
 ## Limitations
 
+- Local storage only (no cloud sync between devices)
 - Maximum 150 shows (configurable)
 - Requires other addons for actual video streaming (Torrentio, GDrive, etc.)
-- "Watched" means playback started; the Stremio addon protocol provides no watch-completion events
-- Server must be reachable (deploy to Vercel or keep it running locally)
+- Server must be running to use the addon
 
 ## License
 
