@@ -39,6 +39,17 @@ function asyncHandler(fn) {
 }
 
 /**
+ * Mask a user key for logging (never log the full secret)
+ */
+function maskUserId(req) {
+  const raw =
+    (req.query && (req.query.user || req.query.uid)) ||
+    (req.headers && req.headers['x-user-id']);
+  if (typeof raw !== 'string' || raw.length === 0) return 'unknown';
+  return `${raw.slice(0, 6)}…`;
+}
+
+/**
  * Error handler middleware
  */
 function errorHandler(err, req, res, next) {
@@ -49,7 +60,7 @@ function errorHandler(err, req, res, next) {
     statusCode: err.statusCode,
     path: req.path,
     method: req.method,
-    userId: req.query.user || req.query.uid || 'unknown',
+    userId: maskUserId(req),
     timestamp: new Date().toISOString(),
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   });

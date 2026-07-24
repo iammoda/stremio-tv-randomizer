@@ -116,6 +116,8 @@ function buildEpisodeMeta(seriesMeta, episodeId, season, episode, video, descrip
         bingeGroup: seriesMeta.meta.id,
         featured: true,
         videoSize: 1080,
+        // Open the detail page directly on this episode's streams
+        defaultVideoId: episodeId,
       },
       videos: [
         {

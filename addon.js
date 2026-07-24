@@ -16,6 +16,10 @@ const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 // Create Express app
 const app = express();
 
+// Behind Vercel's proxy: makes req.ip and req.protocol reflect the client,
+// which the rate limiter (IP keys) and absolute asset URLs depend on
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
