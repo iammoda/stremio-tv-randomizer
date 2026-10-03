@@ -1,5 +1,6 @@
 const { body, param, query, validationResult } = require('express-validator');
 const { ErrorTypes } = require('./errorHandler');
+const { RANDOMIZATION_MODES } = require('../config');
 
 /**
  * Handle validation errors
@@ -78,9 +79,17 @@ const validateSeasonSettings = [
     .withMessage('enabledSeasons must be an array'),
   body('enabledSeasons.*')
     .isInt({ min: 1 })
-    .withMessage('Season numbers must be positive integers'),
+    .withMessage('Season numbers must be positive integers')
+    .toInt(),
 ];
 
+const validateUserSettings = [
+  body('randomizationMode')
+    .isString()
+    .bail()
+    .isIn(RANDOMIZATION_MODES)
+    .withMessage('Randomization mode must be episode or show'),
+];
 
 module.exports = {
   handleValidationErrors,
@@ -89,4 +98,5 @@ module.exports = {
   validateImdbIdBody,
   validateSearchQuery,
   validateSeasonSettings,
+  validateUserSettings,
 };

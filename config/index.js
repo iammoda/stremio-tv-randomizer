@@ -8,6 +8,8 @@ const CINEMETA_URL = 'https://v3-cinemeta.strem.io';
 const TVMAZE_URL = 'https://api.tvmaze.com';
 
 const MAX_SHOWS = 150;
+const RANDOMIZATION_MODES = ['episode', 'show'];
+const DEFAULT_RANDOMIZATION_MODE = 'episode';
 
 const manifest = {
   id: 'org.tvrandomizer.addon',
@@ -47,5 +49,7 @@ module.exports = {
   CINEMETA_URL,
   TVMAZE_URL,
   MAX_SHOWS,
+  RANDOMIZATION_MODES,
+  DEFAULT_RANDOMIZATION_MODE,
   manifest,
 };

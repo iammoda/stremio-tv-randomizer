@@ -11,6 +11,8 @@ const {
   getShowSettings,
   updateShowSettings,
   deleteShowSettings,
+  getUserSettings,
+  updateUserSettings,
 } = require('../services/db');
 const { fetchMeta } = require('../services/cinemeta');
 const { searchShows, getTvmazeShow } = require('../services/tvmaze');
@@ -27,6 +29,7 @@ const {
   validateImdbIdBody,
   validateSearchQuery,
   validateSeasonSettings,
+  validateUserSettings,
 } = require('../middleware/validator');
 
 const router = express.Router();
@@ -41,6 +44,30 @@ router.get('/health', asyncHandler(async (req, res) => {
   await getDb();
   res.json({ ok: true });
 }));
+
+router.get('/settings',
+  validateUserId,
+  handleValidationErrors,
+  asyncHandler(async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(400).json({ error: 'Missing user key' });
+    res.set('Cache-Control', 'no-store');
+    res.json(await getUserSettings(userId));
+  })
+);
+
+router.put('/settings',
+  validateUserId,
+  validateUserSettings,
+  handleValidationErrors,
+  asyncHandler(async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(400).json({ error: 'Missing user key' });
+    const { randomizationMode } = req.body;
+    await updateUserSettings(userId, { randomizationMode });
+    res.json({ success: true, randomizationMode });
+  })
+);
 
 /**
  * Search for TV shows

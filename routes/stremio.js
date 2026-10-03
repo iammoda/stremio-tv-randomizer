@@ -13,6 +13,18 @@ const router = express.Router();
 // Apply rate limiting to Stremio routes
 router.use(stremioLimiter);
 
+function noEligibleEpisodes(id) {
+  return {
+    meta: {
+      id,
+      type: 'series',
+      name: 'No eligible episodes',
+      description: 'No episodes are available for this selection. Check your season filters in the add-on settings, or try again later. Episodes with a future air date are excluded.',
+      videos: [],
+    },
+  };
+}
+
 /**
  * Addon manifest
  */
@@ -114,7 +126,7 @@ router.get('/meta/:type/:id.json', asyncHandler(async (req, res) => {
     const payload = await pickSmartRandomEpisode(userId, userShows);
     
     if (!payload) {
-      return res.json({ meta: null });
+      return res.json(noEligibleEpisodes(id));
     }
 
     const description = await resolveEpisodeDescription(
@@ -147,7 +159,7 @@ router.get('/meta/:type/:id.json', asyncHandler(async (req, res) => {
     const payload = await pickSmartRandomEpisode(userId, userShows, showId);
 
     if (!payload) {
-      return res.json({ meta: null });
+      return res.json(noEligibleEpisodes(id));
     }
 
     const description = await resolveEpisodeDescription(

@@ -164,6 +164,34 @@
         <p class="hint">Search for TV shows and click + to add</p>
       </section>
 
+      <section class="randomization-section requires-key">
+        <h2 class="section-title">Random All Shows</h2>
+        <label class="setting-label" for="randomizationMode">Selection mode</label>
+        <select
+          id="randomizationMode"
+          class="setting-select"
+          aria-describedby="randomizationHint randomizationStatus"
+          onchange="saveRandomizationSettings()"
+          disabled
+        >
+          <option value="episode">Equal chance per episode</option>
+          <option value="show">Equal chance per show</option>
+        </select>
+        <p id="randomizationHint" class="hint">
+          Each eligible episode has the same chance. Shows with more episodes appear more often.
+        </p>
+        <p id="randomizationStatus" class="setting-status" role="status">Loading selection mode...</p>
+        <button
+          id="retryRandomizationSettings"
+          class="btn btn-secondary"
+          type="button"
+          onclick="loadRandomizationSettings()"
+          hidden
+        >
+          Retry loading
+        </button>
+      </section>
+
       <section class="shows-section requires-key">
         <div class="section-header">
           <h2 class="section-title">My Shows</h2>
@@ -279,12 +307,13 @@
           </p>
           <div id="seasonCheckboxes" class="season-checkboxes"></div>
           <div id="seasonLoading" class="loading">Loading seasons...</div>
+          <p id="seasonAvailability" class="setting-status" role="status"></p>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="closeSeasonModal()">
             Cancel
           </button>
-          <button class="btn btn-primary" onclick="saveSeasonSettings()">
+          <button id="saveSeasonSettingsButton" class="btn btn-primary" onclick="saveSeasonSettings()" disabled>
             Save
           </button>
         </div>
@@ -303,6 +332,65 @@
       let currentSeasonShow = null;
       let availableSeasons = [];
       let selectedSeasons = [];
+      let seasonEpisodeCounts = {};
+      let seasonSettingsLoaded = false;
+      let savedRandomizationMode = 'episode';
+
+      function updateRandomizationHint() {
+        const mode = document.getElementById('randomizationMode').value;
+        document.getElementById('randomizationHint').textContent = mode === 'show'
+          ? 'Each show with eligible episodes has the same chance, then an episode is picked within that show.'
+          : 'Each eligible episode has the same chance. Shows with more episodes appear more often.';
+      }
+
+      async function loadRandomizationSettings() {
+        if (!userKey) return;
+        const select = document.getElementById('randomizationMode');
+        const status = document.getElementById('randomizationStatus');
+        const retry = document.getElementById('retryRandomizationSettings');
+        select.disabled = true;
+        retry.hidden = true;
+        status.textContent = 'Loading selection mode...';
+        try {
+          const response = await fetch(apiUrl('/settings'), { cache: 'no-store' });
+          if (!response.ok) throw new Error('Settings could not be loaded');
+          const settings = await response.json();
+          savedRandomizationMode = settings.randomizationMode === 'show' ? 'show' : 'episode';
+          select.value = savedRandomizationMode;
+          updateRandomizationHint();
+          select.disabled = false;
+          status.textContent = 'Changes save automatically for all devices using your key.';
+        } catch (error) {
+          status.textContent = 'Could not load your selection mode. Retry to change it.';
+          retry.hidden = false;
+        }
+      }
+
+      async function saveRandomizationSettings() {
+        if (!userKey) return;
+        const select = document.getElementById('randomizationMode');
+        const status = document.getElementById('randomizationStatus');
+        const randomizationMode = select.value;
+        select.disabled = true;
+        updateRandomizationHint();
+        status.textContent = 'Saving selection mode...';
+        try {
+          const response = await fetch(apiUrl('/settings'), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ randomizationMode }),
+          });
+          if (!response.ok) throw new Error('Settings could not be saved');
+          savedRandomizationMode = randomizationMode;
+          status.textContent = 'Saved. This choice applies on all devices using your key.';
+        } catch (error) {
+          select.value = savedRandomizationMode;
+          updateRandomizationHint();
+          status.textContent = 'Could not save. Your previous choice is still selected. Try again.';
+        } finally {
+          select.disabled = false;
+        }
+      }
 
       function initTheme() {
         const savedTheme = localStorage.getItem('tvRandomizerTheme');
@@ -577,11 +665,15 @@
       // Season Settings Modal
       async function openSeasonSettings(showId, showName) {
         currentSeasonShow = showId;
+        seasonSettingsLoaded = false;
+        document.getElementById('saveSeasonSettingsButton').disabled = true;
         document.getElementById('seasonModalTitle').textContent =
           `${showName} - Season Settings`;
         document.getElementById('seasonModal').classList.add('active');
         document.getElementById('seasonCheckboxes').innerHTML = '';
         document.getElementById('seasonLoading').style.display = 'block';
+        document.getElementById('seasonAvailability').textContent = '';
+        seasonEpisodeCounts = {};
 
         try {
           // Fetch available seasons and current settings in parallel
@@ -589,19 +681,29 @@
             fetch(apiUrl(`/shows/${showId}/seasons`)),
             fetch(apiUrl(`/shows/${showId}/settings`)),
           ]);
+          if (!seasonsRes.ok || !settingsRes.ok) {
+            throw new Error('Season settings could not be loaded');
+          }
 
           const seasonsData = await seasonsRes.json();
           const settingsData = await settingsRes.json();
+          if (currentSeasonShow !== showId) return;
 
-          availableSeasons = seasonsData.seasons || [];
-          const episodeCounts = seasonsData.episodeCounts || {};
-          selectedSeasons = settingsData.enabledSeasons || [];
+          selectedSeasons = (settingsData.enabledSeasons || []).map(Number);
+          // Preserve saved seasons even if current metadata has no episodes for them.
+          availableSeasons = [...new Set([
+            ...(seasonsData.seasons || []), ...selectedSeasons,
+          ])].sort((a, b) => a - b);
+          seasonEpisodeCounts = seasonsData.episodeCounts || {};
+          seasonSettingsLoaded = true;
+          document.getElementById('saveSeasonSettingsButton').disabled = false;
 
           document.getElementById('seasonLoading').style.display = 'none';
 
           if (availableSeasons.length === 0) {
             document.getElementById('seasonCheckboxes').innerHTML =
               '<p class="no-seasons">No seasons found for this show.</p>';
+            updateSeasonAvailability();
             return;
           }
 
@@ -611,17 +713,19 @@
                 const isChecked =
                   selectedSeasons.length === 0 ||
                   selectedSeasons.includes(season);
-                const epCount = episodeCounts[season] || 0;
+                const epCount = seasonEpisodeCounts[season] || 0;
                 return `
               <label class="season-checkbox">
                 <input type="checkbox" value="${season}" ${isChecked ? 'checked' : ''} onchange="updateSeasonSelection()">
                 <span class="season-label">Season ${season}</span>
-                <span class="episode-count">${epCount} episode${epCount !== 1 ? 's' : ''}</span>
+                <span class="episode-count">${epCount} eligible episode${epCount !== 1 ? 's' : ''}</span>
               </label>
             `;
               })
               .join('');
+          updateSeasonAvailability();
         } catch (e) {
+          if (currentSeasonShow !== showId) return;
           console.error('Failed to load season settings:', e);
           document.getElementById('seasonLoading').style.display = 'none';
           document.getElementById('seasonCheckboxes').innerHTML =
@@ -636,20 +740,30 @@
         selectedSeasons = Array.from(checkboxes)
           .filter((cb) => cb.checked)
           .map((cb) => parseInt(cb.value, 10));
+        updateSeasonAvailability();
+      }
+
+      function updateSeasonAvailability() {
+        const seasons = selectedSeasons.length > 0 ? selectedSeasons : availableSeasons;
+        const count = seasons.reduce((total, season) => total + (seasonEpisodeCounts[season] || 0), 0);
+        document.getElementById('seasonAvailability').textContent = count > 0
+          ? `${count} eligible episode${count === 1 ? '' : 's'} in this selection. Future air dates are excluded.`
+          : 'No eligible episodes in this selection. Choose other seasons or wait for episodes to air.';
       }
 
       async function saveSeasonSettings() {
-        if (!currentSeasonShow) return;
+        if (!currentSeasonShow || !seasonSettingsLoaded) return;
+        const showId = currentSeasonShow;
+        const saveButton = document.getElementById('saveSeasonSettingsButton');
+        saveButton.disabled = true;
 
-        // If all seasons are selected, save as empty array (means "all")
-        const seasonsToSave =
-          selectedSeasons.length === availableSeasons.length
-            ? []
-            : selectedSeasons;
+        // Preserve explicit selections, even if metadata currently lists no other seasons.
+        // Only an actual empty selection means all seasons, including future ones.
+        const seasonsToSave = [...selectedSeasons];
 
         try {
           const response = await fetch(
-            apiUrl(`/shows/${currentSeasonShow}/settings`),
+            apiUrl(`/shows/${showId}/settings`),
             {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -659,13 +773,15 @@
 
           if (response.ok) {
             showToast('Season settings saved');
-            closeSeasonModal();
+            if (currentSeasonShow === showId) closeSeasonModal();
           } else {
             showToast('Failed to save settings');
           }
         } catch (e) {
           console.error('Failed to save season settings:', e);
           showToast('Failed to save settings');
+        } finally {
+          if (currentSeasonShow === showId) saveButton.disabled = false;
         }
       }
 
@@ -674,6 +790,7 @@
           return;
         document.getElementById('seasonModal').classList.remove('active');
         currentSeasonShow = null;
+        seasonSettingsLoaded = false;
       }
 
       function showToast(message) {
@@ -759,6 +876,7 @@
       initTheme();
       initUserKey();
       loadShows();
+      loadRandomizationSettings();
       toggleClearButton('searchInput', 'searchClear');
       toggleClearButton('myShowsSearch', 'myShowsClear');
     </script>

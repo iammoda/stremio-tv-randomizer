@@ -1,8 +1,10 @@
 const { randomInt } = require('crypto');
+const { DEFAULT_RANDOMIZATION_MODE } = require('../config');
 const { fetchMeta } = require('./cinemeta');
 const {
   getShowSettings,
   getShowSettingsMap,
+  getUserSettings,
   getShowEpisodeStats,
   getShowEpisodeStatsMap,
   upsertShowEpisodeStats,
@@ -11,6 +13,8 @@ const { normalizeEpisode } = require('../utils/episode');
 
 const SHOW_STATS_TTL_MS = 24 * 60 * 60 * 1000;
 const SHOW_STATS_BUILD_CONCURRENCY = 5;
+// Refresh older counts that included episodes which have not aired yet.
+const EPISODE_ELIGIBILITY_VERSION = 1;
 
 function defaultNow() {
   return new Date();
@@ -25,6 +29,7 @@ function getDependencies(options = {}) {
     fetchMetaFn: options.fetchMetaFn || fetchMeta,
     getShowSettingsFn: options.getShowSettingsFn || getShowSettings,
     getShowSettingsMapFn: options.getShowSettingsMapFn || getShowSettingsMap,
+    getUserSettingsFn: options.getUserSettingsFn || getUserSettings,
     getShowEpisodeStatsFn: options.getShowEpisodeStatsFn || getShowEpisodeStats,
     getShowEpisodeStatsMapFn:
       options.getShowEpisodeStatsMapFn || getShowEpisodeStatsMap,
@@ -41,7 +46,7 @@ function getDependencies(options = {}) {
 /**
  * Build a normalized, deduplicated episode inventory from series metadata
  */
-function buildEpisodeInventory(seriesMeta) {
+function buildEpisodeInventory(seriesMeta, now = defaultNow()) {
   const videos =
     seriesMeta && seriesMeta.meta && Array.isArray(seriesMeta.meta.videos)
       ? seriesMeta.meta.videos
@@ -53,6 +58,7 @@ function buildEpisodeInventory(seriesMeta) {
       seasonCounts: {},
       availableSeasons: [],
       totalEpisodes: 0,
+      nextReleaseAt: null,
     };
   }
 
@@ -69,9 +75,26 @@ function buildEpisodeInventory(seriesMeta) {
   const streamable = deduped.filter(
     (item) => item.season > 0 && item.episode > 0,
   );
-  const episodes = streamable.length > 0 ? streamable : deduped;
+  const candidates = streamable.length > 0 ? streamable : deduped;
+  let nextReleaseAt = null;
+  const episodes = candidates.filter(({ video }) => {
+    const releaseTime = [video?.released, video?.firstAired]
+      .filter((value) => typeof value === 'string' && value.trim())
+      .map((value) => Date.parse(value))
+      .find(Number.isFinite);
+    // Unknown dates remain eligible; only a known future date excludes an episode.
+    if (releaseTime === undefined || releaseTime <= now.getTime()) return true;
+    if (nextReleaseAt === null || releaseTime < nextReleaseAt.getTime()) {
+      nextReleaseAt = new Date(releaseTime);
+    }
+    return false;
+  });
 
+  // Keep upcoming seasons visible in settings, with zero eligible episodes.
   const seasonCounts = {};
+  for (const candidate of candidates) {
+    if (candidate.season > 0) seasonCounts[String(candidate.season)] = 0;
+  }
   for (const episode of episodes) {
     if (episode.season > 0) {
       const key = String(episode.season);
@@ -88,11 +111,12 @@ function buildEpisodeInventory(seriesMeta) {
     seasonCounts,
     availableSeasons,
     totalEpisodes: episodes.length,
+    nextReleaseAt,
   };
 }
 
 /**
- * Filter an episode inventory by enabled seasons, falling back to all episodes
+ * Filter an episode inventory by enabled seasons. An empty list means all seasons.
  */
 function getEligibleEpisodesForShow(inventory, enabledSeasons = []) {
   const episodes = Array.isArray(inventory && inventory.episodes)
@@ -104,8 +128,8 @@ function getEligibleEpisodesForShow(inventory, enabledSeasons = []) {
     return episodes;
   }
 
-  const filtered = episodes.filter((item) => enabledSeasons.includes(item.season));
-  return filtered.length > 0 ? filtered : episodes;
+  const seasons = new Set(enabledSeasons.map(Number));
+  return episodes.filter((item) => seasons.has(item.season));
 }
 
 /**
@@ -121,18 +145,21 @@ function getEligibleEpisodeCountFromStats(stats, enabledSeasons = []) {
   }
 
   const seasonCounts = stats.seasonCounts || {};
-  const filteredCount = enabledSeasons.reduce((sum, season) => {
+  return [...new Set(enabledSeasons.map(Number))].reduce((sum, season) => {
     return sum + (seasonCounts[String(season)] || 0);
   }, 0);
-
-  return filteredCount > 0 ? filteredCount : stats.totalEpisodes;
 }
 
 function isStatsStale(stats, now = defaultNow(), statsTtlMs = SHOW_STATS_TTL_MS) {
-  if (!stats || !stats.updatedAt) return true;
+  if (!stats || !stats.updatedAt || stats.eligibilityVersion !== EPISODE_ELIGIBILITY_VERSION) {
+    return true;
+  }
   const updatedAt = new Date(stats.updatedAt);
   if (Number.isNaN(updatedAt.getTime())) return true;
-  return now.getTime() - updatedAt.getTime() > statsTtlMs;
+  if (stats.nextReleaseAt && new Date(stats.nextReleaseAt).getTime() <= now.getTime()) {
+    return true;
+  }
+  return now.getTime() - updatedAt.getTime() >= statsTtlMs;
 }
 
 function buildStatsPayload(showId, inventory, nowFn = defaultNow) {
@@ -141,6 +168,8 @@ function buildStatsPayload(showId, inventory, nowFn = defaultNow) {
     seasonCounts: inventory.seasonCounts,
     availableSeasons: inventory.availableSeasons,
     totalEpisodes: inventory.totalEpisodes,
+    eligibilityVersion: EPISODE_ELIGIBILITY_VERSION,
+    nextReleaseAt: inventory.nextReleaseAt,
     updatedAt: nowFn(),
   };
 }
@@ -159,8 +188,9 @@ async function refreshShowEpisodeStats(showId, options = {}) {
     return null;
   }
 
-  const inventory = buildEpisodeInventory(seriesMeta);
-  const payload = buildStatsPayload(showId, inventory, deps.nowFn);
+  const now = deps.nowFn();
+  const inventory = buildEpisodeInventory(seriesMeta, now);
+  const payload = buildStatsPayload(showId, inventory, () => now);
   return deps.upsertShowEpisodeStatsFn(showId, payload);
 }
 
@@ -195,21 +225,6 @@ async function mapWithConcurrency(items, limit, iteratee) {
   const workerCount = Math.max(1, Math.min(limit, items.length));
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
   return results;
-}
-
-async function populateMissingShowStats(shows, options = {}) {
-  if (!Array.isArray(shows) || shows.length === 0) return new Map();
-
-  const results = await mapWithConcurrency(
-    shows,
-    SHOW_STATS_BUILD_CONCURRENCY,
-    async (show) => {
-      const stats = await refreshShowEpisodeStats(show.id, options);
-      return [show.id, stats];
-    },
-  );
-
-  return new Map(results.filter((entry) => entry[1]));
 }
 
 /**
@@ -258,7 +273,7 @@ async function pickEpisodeFromShow(userId, show, options = {}) {
     options.settings ||
     (await deps.getShowSettingsFn(userId, show.id)) ||
     { enabledSeasons: [] };
-  const inventory = buildEpisodeInventory(meta);
+  const inventory = buildEpisodeInventory(meta, deps.nowFn());
   const eligibleEpisodes = getEligibleEpisodesForShow(
     inventory,
     settings.enabledSeasons || [],
@@ -277,77 +292,91 @@ async function pickEpisodeFromShow(userId, show, options = {}) {
   };
 }
 
-async function pickAcrossAllShows(userId, showPool, options = {}, retried = false) {
+async function pickAcrossAllShows(userId, showPool, options = {}) {
   const deps = getDependencies(options);
+  const now = deps.nowFn();
   const showIds = showPool.map((show) => show.id);
-  const [settingsMap, cachedStatsMap] = await Promise.all([
+  const [settingsMap, cachedStatsMap, userSettings] = await Promise.all([
     deps.getShowSettingsMapFn(userId, showIds),
     deps.getShowEpisodeStatsMapFn(showIds),
+    deps.getUserSettingsFn(userId),
   ]);
+  const mode = userSettings?.randomizationMode || DEFAULT_RANDOMIZATION_MODE;
+  const loadedShows = new Map();
+  const unavailableShows = new Set();
 
-  const missingShows = showPool.filter((show) => !cachedStatsMap.has(show.id));
-  if (missingShows.length > 0) {
-    const refreshedMap = await populateMissingShowStats(missingShows, options);
-    for (const [showId, stats] of refreshedMap.entries()) {
-      cachedStatsMap.set(showId, stats);
+  async function loadShow(show) {
+    if (!loadedShows.has(show.id)) {
+      const meta = await deps.fetchMetaFn('series', show.id);
+      loadedShows.set(show.id, meta?.meta
+        ? { meta, inventory: buildEpisodeInventory(meta, now) }
+        : null);
     }
+    return loadedShows.get(show.id);
   }
 
-  const showsWithCounts = showPool
-    .map((show) => {
-      const settings = settingsMap.get(show.id) || { enabledSeasons: [] };
-      const stats = cachedStatsMap.get(show.id);
-      return {
-        show,
-        settings,
-        cachedStats: stats,
-        eligibleCount: getEligibleEpisodeCountFromStats(
-          stats,
-          settings.enabledSeasons || [],
-        ),
-      };
-    })
-    .filter((item) => item.eligibleCount > 0);
-
-  if (showsWithCounts.length === 0) return null;
-
-  const chosenShow = pickWeightedShow(showsWithCounts, deps.rngInt);
-  if (!chosenShow) return null;
-
-  const liveMeta = await deps.fetchMetaFn('series', chosenShow.show.id);
-  if (!liveMeta || !liveMeta.meta) {
-    if (retried) return null;
-    await refreshShowEpisodeStats(chosenShow.show.id, options);
-    return pickAcrossAllShows(userId, showPool, options, true);
+  async function saveStats(show, inventory) {
+    const stats = buildStatsPayload(show.id, inventory, () => now);
+    await deps.upsertShowEpisodeStatsFn(show.id, stats);
+    cachedStatsMap.set(show.id, stats);
   }
 
-  const inventory = buildEpisodeInventory(liveMeta);
-  const eligibleEpisodes = getEligibleEpisodesForShow(
-    inventory,
-    chosenShow.settings.enabledSeasons || [],
-  );
-  const liveCount = eligibleEpisodes.length;
+  // Refresh before weighting, including zero-count shows which could never be picked.
+  const staleShows = showPool.filter((show) =>
+    isStatsStale(cachedStatsMap.get(show.id), now, deps.statsTtlMs));
+  await mapWithConcurrency(staleShows, SHOW_STATS_BUILD_CONCURRENCY, async (show) => {
+    const loaded = await loadShow(show);
+    if (!loaded) {
+      unavailableShows.add(show.id);
+      return;
+    }
+    await saveStats(show, loaded.inventory);
+  });
 
-  if (liveCount === 0 || liveCount !== chosenShow.eligibleCount) {
-    if (retried) return null;
-    await refreshShowEpisodeStats(chosenShow.show.id, {
-      ...options,
-      seriesMeta: liveMeta,
-    });
-    return pickAcrossAllShows(userId, showPool, options, true);
+  let candidates = showPool.filter((show) => !unavailableShows.has(show.id));
+  while (candidates.length > 0) {
+    const showsWithCounts = candidates.map((show) => ({
+      show,
+      settings: settingsMap.get(show.id) || { enabledSeasons: [] },
+      eligibleCount: getEligibleEpisodeCountFromStats(
+        cachedStatsMap.get(show.id),
+        settingsMap.get(show.id)?.enabledSeasons || [],
+      ),
+    })).filter((item) => item.eligibleCount > 0);
+
+    if (showsWithCounts.length === 0) return null;
+
+    const chosenShow = mode === 'show'
+      ? showsWithCounts[deps.rngInt(showsWithCounts.length)]
+      : pickWeightedShow(showsWithCounts, deps.rngInt);
+    const loaded = await loadShow(chosenShow.show);
+    if (!loaded) {
+      candidates = candidates.filter((show) => show.id !== chosenShow.show.id);
+      continue;
+    }
+
+    const eligibleEpisodes = getEligibleEpisodesForShow(
+      loaded.inventory,
+      chosenShow.settings.enabledSeasons || [],
+    );
+    if (eligibleEpisodes.length !== chosenShow.eligibleCount) {
+      // Correct the weights and draw again. Each show's metadata is fetched only once
+      // per selection, so mismatches converge instead of exhausting a fixed retry count.
+      await saveStats(chosenShow.show, loaded.inventory);
+      continue;
+    }
+
+    const picked = pickEpisodeFromEligibleEpisodes(eligibleEpisodes, deps.rngInt);
+    return {
+      seriesMeta: loaded.meta,
+      episodeId: picked.id,
+      season: picked.season,
+      episode: picked.episode,
+      video: picked.video,
+      show: chosenShow.show,
+    };
   }
-
-  const picked = pickEpisodeFromEligibleEpisodes(eligibleEpisodes, deps.rngInt);
-  if (!picked) return null;
-
-  return {
-    seriesMeta: liveMeta,
-    episodeId: picked.id,
-    season: picked.season,
-    episode: picked.episode,
-    video: picked.video,
-    show: chosenShow.show,
-  };
+  return null;
 }
 
 /**

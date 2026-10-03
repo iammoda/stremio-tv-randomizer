@@ -1,5 +1,10 @@
 const { MongoClient } = require('mongodb');
-const { MONGODB_URI, MONGODB_DB } = require('../config');
+const {
+  MONGODB_URI,
+  MONGODB_DB,
+  RANDOMIZATION_MODES,
+  DEFAULT_RANDOMIZATION_MODE,
+} = require('../config');
 
 let mongoClient;
 let mongoDb;
@@ -52,9 +57,10 @@ async function getDb() {
 async function ensureIndexes() {
   if (!mongoDb) return;
   if (!indexesPromise) {
-    indexesPromise = mongoDb
-      .collection('showEpisodeStats')
-      .createIndex({ showId: 1 }, { unique: true })
+    indexesPromise = Promise.all([
+      mongoDb.collection('showEpisodeStats').createIndex({ showId: 1 }, { unique: true }),
+      mongoDb.collection('userSettings').createIndex({ userId: 1 }, { unique: true }),
+    ])
       .catch((error) => {
         indexesPromise = null;
         throw error;
@@ -70,6 +76,34 @@ function getUserId(req) {
   const userId =
     (req.query.user || req.query.uid || req.headers['x-user-id'] || '').trim();
   return userId || null;
+}
+
+/**
+ * Randomization preference shared by devices using the same user key
+ */
+async function getUserSettings(userId) {
+  const db = userId ? await getDb() : null;
+  const settings = db
+    ? await db.collection('userSettings').findOne({ userId })
+    : null;
+  return {
+    randomizationMode: RANDOMIZATION_MODES.includes(settings?.randomizationMode)
+      ? settings.randomizationMode
+      : DEFAULT_RANDOMIZATION_MODE,
+  };
+}
+
+async function updateUserSettings(userId, { randomizationMode }) {
+  if (!userId) return;
+  const db = await getDb();
+  await db.collection('userSettings').updateOne(
+    { userId },
+    {
+      $set: { randomizationMode, updatedAt: new Date() },
+      $setOnInsert: { userId, createdAt: new Date() },
+    },
+    { upsert: true },
+  );
 }
 
 // ===================
@@ -267,6 +301,8 @@ async function upsertShowEpisodeStats(showId, stats) {
     seasonCounts: stats.seasonCounts || {},
     availableSeasons: stats.availableSeasons || [],
     totalEpisodes: Number.isFinite(stats.totalEpisodes) ? stats.totalEpisodes : 0,
+    eligibilityVersion: stats.eligibilityVersion,
+    nextReleaseAt: stats.nextReleaseAt || null,
     updatedAt: stats.updatedAt || new Date(),
   };
 
@@ -288,6 +324,8 @@ module.exports = {
   getDb,
   getUserId,
   ensureIndexes,
+  getUserSettings,
+  updateUserSettings,
   // Shows
   getUserShows,
   getShowCount,

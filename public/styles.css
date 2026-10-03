@@ -119,6 +119,50 @@ section {
   margin-bottom: 16px;
 }
 
+.setting-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.setting-select {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.setting-select:focus-visible,
+.randomization-section button:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 3px;
+}
+
+.setting-select:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.setting-status {
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.randomization-section button[hidden] {
+  display: none;
+}
+
+.randomization-section button {
+  margin-top: 12px;
+  min-height: 44px;
+}
+
 /* User Key */
 .user-key-row {
   display: flex;
@@ -789,6 +833,12 @@ section {
   justify-content: flex-end;
   padding: 20px;
   border-top: 1px solid var(--border);
+}
+
+.modal-footer button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Season Checkboxes */

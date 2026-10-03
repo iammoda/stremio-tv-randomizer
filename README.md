@@ -6,6 +6,8 @@ A Stremio addon that lets you add your favorite TV shows and automatically play 
 
 - **Add TV Shows**: Search and add TV shows to your personal collection
 - **Random Episode Playback**: Click "Random Episode" to instantly play a random episode from any show in your list
+- **Selection Modes**: Give every episode equal odds (default), or give every eligible show equal odds
+- **Episode Eligibility**: Exclude known future air dates and respect your selected seasons
 - **Auto-Play Support**: Episodes can continue automatically when finished (via Torrentio/GDrive)
 - **Persistent Storage**: Your show list is saved locally and persists between sessions
 - **Dark/Light Mode**: Toggle between dark and light themes
@@ -55,6 +57,20 @@ Here you can:
 - Toggle dark/light mode
 - Search/filter through your added shows
 - Clear all shows
+- Choose how "Random All Shows" balances your collection
+
+### Selection modes and season filters
+
+In `/myshows?user=YOUR_KEY`, use **Random All Shows → Selection mode**:
+
+- **Equal chance per episode** (default): each eligible episode has the same odds, so longer shows appear more often.
+- **Equal chance per show**: choose equally among shows with eligible episodes, then choose an episode within that show.
+
+The choice saves automatically in MongoDB and applies to every device using the same user key. Clicking a specific show's random item always chooses within that show.
+
+Episodes with a known future `released` or `firstAired` date are excluded. Missing or invalid dates remain eligible. Season settings show eligible counts, including zero-count upcoming seasons. An empty season setting still means all seasons; an explicit selection that matches no eligible episodes is never widened to other seasons. Stremio shows a "No eligible episodes" message when a selection has no result.
+
+Episode counts refresh after 24 hours or when the next known episode air date arrives, including for shows cached with zero episodes. Old cached counts are rebuilt automatically when first used after this update.
 
 ## Usage
 
@@ -125,6 +141,7 @@ The install page generates a key and builds the `manifest.json?user=KEY` URL so 
 | `/meta/:type/:id.json` | GET | Show/episode metadata |
 | `/stream/:type/:id.json` | GET | Stream URLs |
 | `/api/shows` | GET/POST | Manage show list |
+| `/api/settings?user=KEY` | GET/PUT | Read or save `randomizationMode`: `episode` or `show` |
 | `/api/search` | GET | Search TV shows |
 | `/myshows` | GET | Settings web interface |
 | `/` | GET | Install page |
